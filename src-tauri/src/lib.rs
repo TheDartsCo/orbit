@@ -3,6 +3,7 @@ pub mod db;
 pub mod adapters;
 pub mod indexer;
 pub mod commands;
+pub mod watcher;
 
 pub fn open_db() -> Result<rusqlite::Connection, Box<dyn std::error::Error>> {
     let app_dir = dirs::data_dir()
