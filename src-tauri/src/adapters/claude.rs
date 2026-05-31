@@ -12,16 +12,15 @@ impl ClaudeAdapter {
         Self
     }
 
-    fn session_dirs(&self) -> Vec<PathBuf> {
+    fn project_dirs(&self) -> Vec<PathBuf> {
         let home = dirs::home_dir().unwrap_or_default();
         let claude_dir = home.join(".claude").join("projects");
         if claude_dir.exists() {
             let mut dirs = Vec::new();
             if let Ok(entries) = std::fs::read_dir(&claude_dir) {
                 for entry in entries.flatten() {
-                    let sessions_dir = entry.path().join("sessions");
-                    if sessions_dir.is_dir() {
-                        dirs.push(sessions_dir);
+                    if entry.path().is_dir() {
+                        dirs.push(entry.path());
                     }
                 }
             }
@@ -49,11 +48,11 @@ impl AgentAdapter for ClaudeAdapter {
 
     async fn scan(&self) -> Vec<SessionLocation> {
         let mut locations = Vec::new();
-        for dir in self.session_dirs() {
+        for dir in self.project_dirs() {
             if let Ok(entries) = std::fs::read_dir(&dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
+                    if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
                         let modified = std::fs::metadata(&path)
                             .ok()
                             .and_then(|m| m.modified().ok())
@@ -82,7 +81,6 @@ impl AgentAdapter for ClaudeAdapter {
 
         let project_path = path
             .parent()
-            .and_then(|p| p.parent())
             .and_then(|p| p.file_name())
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
