@@ -245,14 +245,25 @@ where
 }
 
 #[cfg(target_os = "linux")]
+fn linux_path_is_executable(path: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+
+    path.metadata()
+        .map(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
 fn linux_executable_available(executable: &str) -> bool {
     let executable_path = std::path::Path::new(executable);
     if executable_path.components().count() > 1 {
-        return executable_path.is_file();
+        return linux_path_is_executable(executable_path);
     }
 
     std::env::var_os("PATH")
-        .map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(executable).is_file()))
+        .map(|paths| {
+            std::env::split_paths(&paths).any(|dir| linux_path_is_executable(&dir.join(executable)))
+        })
         .unwrap_or(false)
 }
 
@@ -267,10 +278,22 @@ fn resolve_linux_terminal(preferred: Option<&str>) -> Option<ResolvedLinuxTermin
 }
 
 #[cfg(target_os = "linux")]
+fn linux_missing_terminal_error() -> String {
+    let supported = LINUX_TERMINALS
+        .iter()
+        .map(|terminal| terminal.id)
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    format!(
+        "No supported Linux terminal found. Install one of: {}. You can also set TERMINAL to an executable terminal command.",
+        supported
+    )
+}
+
+#[cfg(target_os = "linux")]
 fn launch_linux_terminal(command: &str, preferred: Option<&str>) -> Result<(), String> {
-    let terminal = resolve_linux_terminal(preferred).ok_or_else(|| {
-        "No supported Linux terminal found. Install xterm, GNOME Terminal, Konsole, Ghostty, WezTerm, Kitty, Alacritty, or set TERMINAL.".to_string()
-    })?;
+    let terminal = resolve_linux_terminal(preferred).ok_or_else(linux_missing_terminal_error)?;
 
     let mut process = std::process::Command::new(&terminal.executable);
     for arg in linux_terminal_args(terminal.arg_style, command) {
@@ -602,6 +625,44 @@ mod tests {
         assert!(terminals
             .iter()
             .any(|t| t.id == "gnome-terminal" && !t.available));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_executable_available_requires_execute_bit_for_direct_paths() {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = std::env::temp_dir().join(format!(
+            "orbit-non-executable-terminal-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let mut file = std::fs::File::create(&path).unwrap();
+        writeln!(file, "#!/bin/sh").unwrap();
+
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(!linux_executable_available(&path.to_string_lossy()));
+
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(linux_executable_available(&path.to_string_lossy()));
+
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_missing_terminal_error_lists_all_supported_terminals() {
+        let error = linux_missing_terminal_error();
+
+        for terminal in LINUX_TERMINALS {
+            assert!(
+                error.contains(terminal.id),
+                "missing terminal id {} in {}",
+                terminal.id,
+                error
+            );
+        }
+        assert!(error.contains("TERMINAL"));
     }
 
     #[test]
