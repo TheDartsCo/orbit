@@ -596,9 +596,10 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn preferred_linux_terminal_wins_when_available() {
-        let resolved =
-            resolve_linux_terminal_with(Some("kitty"), Some("ghostty"), |exe| exe == "kitty")
-                .unwrap();
+        let resolved = resolve_linux_terminal_with(Some("kitty"), None, |exe| {
+            exe == "xdg-terminal-exec" || exe == "kitty"
+        })
+        .unwrap();
 
         assert_eq!(resolved.executable, "kitty");
         assert_eq!(resolved.arg_style, LinuxTerminalArgStyle::DashE);
@@ -607,11 +608,13 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn terminal_env_is_used_before_fallbacks() {
-        let resolved =
-            resolve_linux_terminal_with(Some("kitty"), Some("ghostty"), |exe| exe == "ghostty")
-                .unwrap();
+        let terminal_env = "/tmp/orbit-custom-terminal";
+        let resolved = resolve_linux_terminal_with(None, Some(terminal_env), |exe| {
+            exe == terminal_env || exe == "xdg-terminal-exec"
+        })
+        .unwrap();
 
-        assert_eq!(resolved.executable, "ghostty");
+        assert_eq!(resolved.executable, terminal_env);
         assert_eq!(resolved.arg_style, LinuxTerminalArgStyle::DashE);
     }
 
