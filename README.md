@@ -107,6 +107,8 @@ their source session files.
 | Warp | Yes | Not yet | Yes | Not yet |
 | Qoder | Yes | Not yet | Yes | Not yet |
 
+Transcript parsing and resume apply on platforms where discovery is supported.
+
 Linux local dev support means the app can be built and run from source on a
 Linux desktop with Tauri prerequisites installed. Published Linux release
 packages are still outside the v0.1 support boundary.
@@ -131,7 +133,7 @@ The local database uses the platform data directory. On macOS it usually lives
 at:
 
 ```text
-~/Library/Application Support/co.thedarts.orbit/orbit.db
+~/Library/Application Support/orbit/orbit.db
 ```
 
 On Linux it usually lives under:
