@@ -1,4 +1,4 @@
-use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -18,9 +18,7 @@ impl SessionWatcher {
             }
         })?;
 
-        watcher.configure(
-            Config::default().with_poll_interval(Duration::from_millis(500)),
-        )?;
+        watcher.configure(Config::default().with_poll_interval(Duration::from_millis(500)))?;
 
         for path in &paths {
             if path.exists() {

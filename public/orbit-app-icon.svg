@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <defs>
+    <linearGradient id="background" x1="110" y1="76" x2="896" y2="940" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171725"/>
+      <stop offset="1" stop-color="#07070B"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="132" y1="88" x2="850" y2="930" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity=".18"/>
+      <stop offset=".5" stop-color="#FFFFFF" stop-opacity=".03"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".1"/>
+    </linearGradient>
+    <linearGradient id="orbit-gradient" x1="180" y1="174" x2="854" y2="850" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8"/>
+      <stop offset=".34" stop-color="#6366F1"/>
+      <stop offset=".68" stop-color="#D946EF"/>
+      <stop offset="1" stop-color="#FB7185"/>
+    </linearGradient>
+    <radialGradient id="core-gradient" cx="0" cy="0" r="1" gradientTransform="translate(454 414) rotate(48) scale(250)">
+      <stop stop-color="#F8FAFC"/>
+      <stop offset=".22" stop-color="#C4B5FD"/>
+      <stop offset=".62" stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#EC4899"/>
+    </radialGradient>
+    <filter id="ambient" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="70"/>
+    </filter>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+    <clipPath id="icon-mask">
+      <rect x="52" y="52" width="920" height="920" rx="218"/>
+    </clipPath>
+  </defs>
+
+  <rect x="52" y="52" width="920" height="920" rx="218" fill="url(#background)"/>
+  <rect x="60" y="60" width="904" height="904" rx="210" stroke="url(#edge)" stroke-width="16"/>
+  <g clip-path="url(#icon-mask)">
+    <circle cx="496" cy="475" r="310" fill="#7C3AED" opacity=".12" filter="url(#ambient)"/>
+
+    <g transform="translate(128 128) scale(1.5)">
+    <path d="M142 157C88 212 89 301 144 355C202 412 296 412 354 354"
+          stroke="#6366F1" stroke-opacity=".25" stroke-width="48" stroke-linecap="round" filter="url(#glow)"/>
+    <path d="M142 157C88 212 89 301 144 355C202 412 296 412 354 354"
+          stroke="url(#orbit-gradient)" stroke-width="24" stroke-linecap="round"/>
+    <path d="M174 126C238 85 326 98 374 157C417 210 417 286 374 339"
+          stroke="#D946EF" stroke-opacity=".22" stroke-width="48" stroke-linecap="round" filter="url(#glow)"/>
+    <path d="M174 126C238 85 326 98 374 157C417 210 417 286 374 339"
+          stroke="url(#orbit-gradient)" stroke-width="24" stroke-linecap="round"/>
+
+    <g stroke="url(#orbit-gradient)" stroke-width="12" stroke-linecap="round">
+      <path d="M170 149L228 218"/>
+      <path d="M350 165L284 222"/>
+      <path d="M365 340L289 286"/>
+      <path d="M151 350L222 287"/>
+    </g>
+
+    <circle cx="256" cy="256" r="76" fill="#A855F7" opacity=".42" filter="url(#glow)"/>
+    <circle cx="256" cy="256" r="65" fill="url(#core-gradient)"/>
+    <circle cx="256" cy="256" r="38" fill="#11111A"/>
+    <circle cx="256" cy="256" r="13" fill="#F8FAFC"/>
+
+    <g>
+      <circle cx="160" cy="137" r="30" fill="#11111A"/>
+      <circle cx="160" cy="137" r="21" fill="#38BDF8"/>
+      <circle cx="160" cy="137" r="8" fill="#E0F2FE"/>
+
+      <circle cx="365" cy="153" r="30" fill="#11111A"/>
+      <circle cx="365" cy="153" r="21" fill="#818CF8"/>
+      <circle cx="365" cy="153" r="8" fill="#E0E7FF"/>
+
+      <circle cx="379" cy="353" r="30" fill="#11111A"/>
+      <circle cx="379" cy="353" r="21" fill="#FB7185"/>
+      <circle cx="379" cy="353" r="8" fill="#FFE4E6"/>
+
+      <circle cx="137" cy="365" r="30" fill="#11111A"/>
+      <circle cx="137" cy="365" r="21" fill="#D946EF"/>
+      <circle cx="137" cy="365" r="8" fill="#FAE8FF"/>
+    </g>
+    </g>
+  </g>
+</svg>

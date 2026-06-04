@@ -1,44 +1,62 @@
+import { useMemo } from "react";
 import { useAppStore } from "../../store/useAppStore";
-import { AGENT_LABELS, type AgentType } from "../../types";
+import {
+  AGENT_LABELS,
+  AGENT_TEXT_COLORS,
+  AGENT_TINTS,
+  type AgentType,
+} from "../../types";
 
-const AGENTS: AgentType[] = ["claude", "codex", "cursor", "opencode"];
+const AGENTS: AgentType[] = ["claude", "codex", "copilot", "cursor", "opencode", "warp", "qoder"];
 
 export function FilterBar() {
-  const filters = useAppStore((s) => s.filters);
-  const setFilters = useAppStore((s) => s.setFilters);
+  const enabledAgents = useAppStore((s) => s.enabledAgents);
+  const toggleAgent = useAppStore((s) => s.toggleAgent);
+  const sessions = useAppStore((s) => s.sessions);
+  const gitBranchFilter = useAppStore((s) => s.filters.git_branch);
+  const setGitBranchFilter = useAppStore((s) => s.setGitBranchFilter);
+
+  const branches = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of sessions) {
+      if (s.git_branch) set.add(s.git_branch);
+    }
+    return Array.from(set).sort();
+  }, [sessions]);
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      <button
-        onClick={() => setFilters({ agent: undefined as unknown as string })}
-        className={`px-2 py-1 rounded-md text-xs transition-colors ${
-          !filters.agent
-            ? "bg-accent text-white"
-            : "bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
-        }`}
-      >
-        All
-      </button>
-      {AGENTS.map((agent) => (
-        <button
-          key={agent}
-          onClick={() =>
-            setFilters({
-              agent:
-                filters.agent === agent
-                  ? (undefined as unknown as string)
-                  : agent,
-            })
-          }
-          className={`px-2 py-1 rounded-md text-xs transition-colors ${
-            filters.agent === agent
-              ? "bg-accent text-white"
-              : "bg-bg-tertiary text-text-secondary hover:bg-bg-hover"
-          }`}
+    <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
+      {AGENTS.map((agent) => {
+        const active = enabledAgents.has(agent);
+        return (
+          <button
+            key={agent}
+            onClick={() => toggleAgent(agent)}
+            className={`h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition-colors ${
+              active
+                ? `${AGENT_TINTS[agent]} ${AGENT_TEXT_COLORS[agent]}`
+                : "border-border bg-bg-secondary text-text-secondary hover:bg-bg-hover opacity-50"
+            }`}
+          >
+            {AGENT_LABELS[agent]}
+          </button>
+        );
+      })}
+      {branches.length > 0 && (
+        <select
+          value={gitBranchFilter ?? ""}
+          onChange={(e) => setGitBranchFilter(e.target.value || null)}
+          className="h-8 shrink-0 rounded-full border border-border bg-bg-secondary px-3 text-xs font-semibold text-text-secondary transition-colors hover:bg-bg-hover"
+          aria-label="Filter by git branch"
         >
-          {AGENT_LABELS[agent]}
-        </button>
-      ))}
+          <option value="">All branches</option>
+          {branches.map((b) => (
+            <option key={b} value={b}>
+              {b}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }

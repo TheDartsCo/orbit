@@ -1,9 +1,12 @@
 [package]
 name = "orbit"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "A local session browser for AI coding agents"
+authors = ["The Darts Co"]
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/TheDartsCo/orbit"
+homepage = "https://github.com/TheDartsCo/orbit"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -32,6 +35,7 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 thiserror = "2"
 dirs = "6"
+prost = "0.14.3"
 
 [dev-dependencies]
 tempfile = "3"

@@ -2,6 +2,14 @@
   "name": "orbit",
   "private": true,
   "version": "0.1.0",
+  "description": "A local session browser for AI coding agents.",
+  "author": "The Darts Co",
+  "license": "MIT",
+  "homepage": "https://github.com/TheDartsCo/orbit",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TheDartsCo/orbit.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "orbit",
+  "productName": "Orbit",
   "version": "0.1.0",
-  "identifier": "com.maf.orbit",
+  "identifier": "co.thedarts.orbit",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,8 +13,10 @@
     "windows": [
       {
         "title": "Orbit",
-        "width": 800,
-        "height": 600
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1100,
+        "minHeight": 700
       }
     ],
     "security": {

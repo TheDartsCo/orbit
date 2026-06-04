@@ -1,7 +1,6 @@
 import { Copy, Play } from "lucide-react";
 import { useAppStore } from "../../store/useAppStore";
 import { invoke } from "@tauri-apps/api/core";
-import { Badge } from "../common/Badge";
 
 export function ActionBar() {
   const selectedSessionId = useAppStore((s) => s.selectedSessionId);
@@ -31,29 +30,34 @@ export function ActionBar() {
   };
 
   return (
-    <div className="h-12 border-t border-border bg-bg-secondary flex items-center justify-between px-4">
-      <div className="flex items-center gap-3">
-        <Badge agent={session.agent} size="md" />
-        <span className="text-xs text-text-muted">
-          {session.message_count} messages
+    <div className="flex h-11 items-center justify-between border-t border-border bg-bg-secondary px-3">
+      <div className="flex min-w-0 items-center gap-2 text-xs font-medium text-text-secondary">
+        <span className="truncate">
+          Created {new Date(session.created_at).toLocaleString()}
         </span>
-        <span className="text-xs text-text-muted">
-          {new Date(session.created_at).toLocaleString()}
-        </span>
+        {session.is_active && (
+          <>
+            <span className="text-text-muted">|</span>
+            <span className="flex items-center gap-1 text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              Active
+            </span>
+          </>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <button
           onClick={handleCopyResume}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-bg-tertiary text-text-secondary text-xs hover:bg-bg-hover transition-colors"
+          className="flex items-center gap-1.5 rounded-md bg-bg-tertiary px-3 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
-          <Copy className="w-3.5 h-3.5" />
+          <Copy className="h-3.5 w-3.5" />
           Copy Resume
         </button>
         <button
           onClick={handleLaunchResume}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent text-white text-xs hover:bg-accent-hover transition-colors"
+          className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-hover"
         >
-          <Play className="w-3.5 h-3.5" />
+          <Play className="h-3.5 w-3.5" />
           Resume
         </button>
       </div>

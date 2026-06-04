@@ -1,7 +1,10 @@
 pub mod claude;
 pub mod codex;
+pub mod copilot;
 pub mod cursor;
 pub mod opencode;
+pub mod qoder;
+pub mod warp;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -32,6 +35,12 @@ pub struct AdapterRegistry {
     adapters: HashMap<String, Box<dyn AgentAdapter>>,
 }
 
+impl Default for AdapterRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AdapterRegistry {
     pub fn new() -> Self {
         let mut reg = Self {
@@ -39,8 +48,11 @@ impl AdapterRegistry {
         };
         reg.register(Box::new(claude::ClaudeAdapter::new()));
         reg.register(Box::new(codex::CodexAdapter::new()));
+        reg.register(Box::new(copilot::CopilotAdapter::new()));
         reg.register(Box::new(cursor::CursorAdapter::new()));
         reg.register(Box::new(opencode::OpenCodeAdapter::new()));
+        reg.register(Box::new(qoder::QoderAdapter::new()));
+        reg.register(Box::new(warp::WarpAdapter::new()));
         reg
     }
 

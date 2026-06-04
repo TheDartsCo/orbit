@@ -1,19 +1,22 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg-primary: #0a0a0a;
-  --color-bg-secondary: #141414;
-  --color-bg-tertiary: #1e1e1e;
-  --color-bg-hover: #252525;
-  --color-bg-active: #2a2a2a;
-  --color-border: #2a2a2a;
-  --color-border-light: #333333;
-  --color-text-primary: #f0f0f0;
-  --color-text-secondary: #a0a0a0;
-  --color-text-muted: #666666;
-  --color-accent: #6366f1;
-  --color-accent-hover: #818cf8;
-  --color-success: #22c55e;
+  --color-bg-primary: #0b0b12;
+  --color-bg-secondary: #11111a;
+  --color-bg-tertiary: #191927;
+  --color-bg-elevated: #222233;
+  --color-bg-hover: #292940;
+  --color-bg-active: #333354;
+  --color-border: #2b2b42;
+  --color-border-light: #414163;
+  --color-text-primary: #f3f4f8;
+  --color-text-secondary: #b8b9cb;
+  --color-text-muted: #7f8098;
+  --color-accent: #38bdf8;
+  --color-accent-hover: #67d2f8;
+  --color-success: #30d158;
+  --color-warning: #ff9f0a;
+  --color-danger: #ff453a;
 }
 
 body {
@@ -24,14 +27,25 @@ body {
   padding: 0;
   overflow: hidden;
   height: 100vh;
+  font-size: 14px;
 }
 
 #root {
   height: 100vh;
 }
 
+button,
+input {
+  font: inherit;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -39,10 +53,14 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
+  background: #414163;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-light);
+  background: #55557a;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }

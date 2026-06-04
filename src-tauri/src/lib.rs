@@ -1,9 +1,10 @@
-pub mod models;
-pub mod db;
 pub mod adapters;
-pub mod indexer;
 pub mod commands;
+pub mod db;
+pub mod indexer;
+pub mod models;
 pub mod watcher;
+pub mod shell_quote;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -43,6 +44,10 @@ pub fn run() {
             commands::launch_resume,
             commands::get_active_sessions,
             commands::reindex_all,
+            commands::get_sync_status,
+            commands::detect_terminals,
+            commands::get_app_settings,
+            commands::save_app_setting,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
