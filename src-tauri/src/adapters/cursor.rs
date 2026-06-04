@@ -12,21 +12,22 @@ impl CursorAdapter {
         Self
     }
 
-    fn data_dir() -> Option<PathBuf> {
-        if cfg!(target_os = "macos") {
-            let home = dirs::home_dir()?;
-            let cursor_dir = home.join(".cursor");
-            if cursor_dir.exists() {
-                Some(cursor_dir)
-            } else {
-                None
-            }
-        } else if cfg!(target_os = "linux") {
-            // To be implemented.
-            None
+    fn data_dir_path_from_home(home: &Path) -> Option<PathBuf> {
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            Some(home.join(".cursor"))
         } else if cfg!(target_os = "windows") {
-            // To be implemented.
+            // Windows adapter discovery is outside this Linux local-dev scope.
             None
+        } else {
+            None
+        }
+    }
+
+    fn data_dir() -> Option<PathBuf> {
+        let home = dirs::home_dir()?;
+        let cursor_dir = Self::data_dir_path_from_home(&home)?;
+        if cursor_dir.exists() {
+            Some(cursor_dir)
         } else {
             None
         }
@@ -464,6 +465,20 @@ mod tests {
         fs::create_dir_all(&transcripts).unwrap();
         fs::create_dir_all(&transcripts_b).unwrap();
         transcripts
+    }
+
+    #[test]
+    fn data_dir_path_from_home_uses_dot_cursor_on_unix() {
+        let home = std::path::Path::new("/home/orbit-user");
+
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            assert_eq!(
+                CursorAdapter::data_dir_path_from_home(home),
+                Some(home.join(".cursor"))
+            );
+        } else {
+            assert!(CursorAdapter::data_dir_path_from_home(home).is_none());
+        }
     }
 
     #[tokio::test]

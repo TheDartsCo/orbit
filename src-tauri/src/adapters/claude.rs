@@ -18,32 +18,39 @@ impl ClaudeAdapter {
         Self
     }
 
-    fn project_dirs(&self) -> Vec<PathBuf> {
-        if cfg!(target_os = "macos") {
-            let home = dirs::home_dir().unwrap_or_default();
-            let claude_dir = home.join(".claude").join("projects");
-            if claude_dir.exists() {
-                let mut dirs = Vec::new();
-                if let Ok(entries) = std::fs::read_dir(&claude_dir) {
-                    for entry in entries.flatten() {
-                        if entry.path().is_dir() {
-                            dirs.push(entry.path());
-                        }
-                    }
-                }
-                dirs
-            } else {
-                Vec::new()
-            }
-        } else if cfg!(target_os = "linux") {
-            // To be implemented.
-            Vec::new()
+    fn claude_root() -> Option<PathBuf> {
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            dirs::home_dir().map(|home| home.join(".claude"))
         } else if cfg!(target_os = "windows") {
-            // To be implemented.
-            Vec::new()
+            // Windows adapter discovery is outside this Linux local-dev scope.
+            None
         } else {
-            Vec::new()
+            None
         }
+    }
+
+    fn project_dirs_from_projects_dir(projects_dir: &Path) -> Vec<PathBuf> {
+        if !projects_dir.exists() {
+            return Vec::new();
+        }
+
+        let mut dirs = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(projects_dir) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() {
+                    dirs.push(entry.path());
+                }
+            }
+        }
+        dirs
+    }
+
+    fn project_dirs(&self) -> Vec<PathBuf> {
+        let Some(claude_root) = Self::claude_root() else {
+            return Vec::new();
+        };
+
+        Self::project_dirs_from_projects_dir(&claude_root.join("projects"))
     }
 }
 
@@ -58,18 +65,7 @@ impl AgentAdapter for ClaudeAdapter {
     }
 
     async fn detect(&self) -> bool {
-        if cfg!(target_os = "macos") {
-            let home = dirs::home_dir().unwrap_or_default();
-            home.join(".claude").exists()
-        } else if cfg!(target_os = "linux") {
-            // To be implemented.
-            false
-        } else if cfg!(target_os = "windows") {
-            // To be implemented.
-            false
-        } else {
-            false
-        }
+        Self::claude_root().is_some_and(|path| path.exists())
     }
 
     async fn scan(&self) -> Vec<SessionLocation> {
@@ -457,6 +453,26 @@ mod tests {
         let path = project_dir.join(format!("{}.jsonl", name));
         fs::write(&path, content).unwrap();
         path
+    }
+
+    #[test]
+    fn project_dirs_from_projects_dir_returns_only_direct_project_dirs() {
+        let tmp = tempfile::tempdir().unwrap();
+        let projects_dir = tmp.path().join("projects");
+        let project_a = projects_dir.join("project-a");
+        let project_b = projects_dir.join("project-b");
+        let nested_session_dir = project_a.join("session-1");
+        let nested_subagents_dir = nested_session_dir.join("subagents");
+
+        fs::create_dir_all(&project_a).unwrap();
+        fs::create_dir_all(&project_b).unwrap();
+        fs::create_dir_all(&nested_subagents_dir).unwrap();
+        fs::write(projects_dir.join("not-a-project.jsonl"), "{}").unwrap();
+
+        let mut dirs = ClaudeAdapter::project_dirs_from_projects_dir(&projects_dir);
+        dirs.sort();
+
+        assert_eq!(dirs, vec![project_a, project_b]);
     }
 
     #[tokio::test]

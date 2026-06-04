@@ -12,21 +12,22 @@ impl CodexAdapter {
         Self
     }
 
-    fn data_dir() -> Option<PathBuf> {
-        if cfg!(target_os = "macos") {
-            let home = dirs::home_dir()?;
-            let codex_dir = home.join(".codex");
-            if codex_dir.exists() {
-                Some(codex_dir)
-            } else {
-                None
-            }
-        } else if cfg!(target_os = "linux") {
-            // To be implemented.
-            None
+    fn data_dir_path_from_home(home: &Path) -> Option<PathBuf> {
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            Some(home.join(".codex"))
         } else if cfg!(target_os = "windows") {
-            // To be implemented.
+            // Windows adapter discovery is outside this Linux local-dev scope.
             None
+        } else {
+            None
+        }
+    }
+
+    fn data_dir() -> Option<PathBuf> {
+        let home = dirs::home_dir()?;
+        let codex_dir = Self::data_dir_path_from_home(&home)?;
+        if codex_dir.exists() {
+            Some(codex_dir)
         } else {
             None
         }
@@ -548,6 +549,20 @@ impl AgentAdapter for CodexAdapter {
 mod tests {
     use super::*;
     use crate::adapters::AgentAdapter;
+
+    #[test]
+    fn data_dir_path_from_home_uses_dot_codex_on_unix() {
+        let home = std::path::Path::new("/home/orbit-user");
+
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            assert_eq!(
+                CodexAdapter::data_dir_path_from_home(home),
+                Some(home.join(".codex"))
+            );
+        } else {
+            assert!(CodexAdapter::data_dir_path_from_home(home).is_none());
+        }
+    }
 
     #[tokio::test]
     async fn parses_subagent_rollout_with_parent_thread_id() {

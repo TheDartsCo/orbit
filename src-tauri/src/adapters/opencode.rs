@@ -38,30 +38,41 @@ impl OpenCodeAdapter {
         Self
     }
 
-    fn candidate_data_dirs() -> Vec<PathBuf> {
-        if cfg!(target_os = "macos") {
-            let mut dirs = Vec::new();
-            let mut seen = HashSet::new();
+    fn candidate_data_dirs_from_sources(
+        home: Option<PathBuf>,
+        data_local: Option<PathBuf>,
+        data: Option<PathBuf>,
+        config: Option<PathBuf>,
+    ) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        let mut seen = HashSet::new();
 
-            let mut push = |path: Option<PathBuf>| {
-                if let Some(path) = path {
-                    if seen.insert(path.clone()) {
-                        dirs.push(path);
-                    }
+        let mut push = |path: Option<PathBuf>| {
+            if let Some(path) = path {
+                if seen.insert(path.clone()) {
+                    dirs.push(path);
                 }
-            };
+            }
+        };
 
-            push(dirs::home_dir().map(|home| home.join(".local/share/opencode")));
-            push(dirs::data_local_dir().map(|dir| dir.join("opencode")));
-            push(dirs::data_dir().map(|dir| dir.join("opencode")));
-            push(dirs::config_dir().map(|dir| dir.join("opencode")));
+        push(home.map(|home| home.join(".local/share/opencode")));
+        push(data_local.map(|dir| dir.join("opencode")));
+        push(data.map(|dir| dir.join("opencode")));
+        push(config.map(|dir| dir.join("opencode")));
 
-            dirs
-        } else if cfg!(target_os = "linux") {
-            // To be implemented.
-            Vec::new()
+        dirs
+    }
+
+    fn candidate_data_dirs() -> Vec<PathBuf> {
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            Self::candidate_data_dirs_from_sources(
+                dirs::home_dir(),
+                dirs::data_local_dir(),
+                dirs::data_dir(),
+                dirs::config_dir(),
+            )
         } else if cfg!(target_os = "windows") {
-            // To be implemented.
+            // Windows adapter discovery is outside this Linux local-dev scope.
             Vec::new()
         } else {
             Vec::new()
@@ -771,6 +782,29 @@ impl AgentAdapter for OpenCodeAdapter {
 mod tests {
     use super::*;
     use crate::adapters::AgentAdapter;
+
+    #[test]
+    fn candidate_data_dirs_from_sources_deduplicates_xdg_paths() {
+        let home = std::path::PathBuf::from("/home/orbit-user");
+        let data_local = std::path::PathBuf::from("/home/orbit-user/.local/share");
+        let data = std::path::PathBuf::from("/home/orbit-user/.local/share");
+        let config = std::path::PathBuf::from("/home/orbit-user/.config");
+
+        let dirs = OpenCodeAdapter::candidate_data_dirs_from_sources(
+            Some(home.clone()),
+            Some(data_local),
+            Some(data),
+            Some(config.clone()),
+        );
+
+        assert_eq!(
+            dirs,
+            vec![
+                home.join(".local/share/opencode"),
+                config.join("opencode"),
+            ]
+        );
+    }
 
     #[tokio::test]
     async fn parses_current_opencode_storage_session() {
