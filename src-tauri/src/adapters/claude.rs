@@ -22,7 +22,7 @@ impl ClaudeAdapter {
         if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
             dirs::home_dir().map(|home| home.join(".claude"))
         } else if cfg!(target_os = "windows") {
-            // Windows adapter discovery is outside this Linux local-dev scope.
+            // Windows paths are not currently mapped for this adapter.
             None
         } else {
             None

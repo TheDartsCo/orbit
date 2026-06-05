@@ -72,7 +72,7 @@ impl OpenCodeAdapter {
                 dirs::config_dir(),
             )
         } else if cfg!(target_os = "windows") {
-            // Windows adapter discovery is outside this Linux local-dev scope.
+            // Windows paths are not currently mapped for this adapter.
             Vec::new()
         } else {
             Vec::new()
