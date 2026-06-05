@@ -537,7 +537,7 @@ impl AgentAdapter for CodexAdapter {
 
     fn resume_command(&self, session_id: &str, _project_path: &str) -> String {
         let safe = crate::shell_quote::shell_quote(session_id);
-        format!("codex --resume {}", safe)
+        format!("codex resume {}", safe)
     }
 
     async fn is_active(&self, _session_path: &Path) -> bool {
@@ -562,6 +562,16 @@ mod tests {
         } else {
             assert!(CodexAdapter::data_dir_path_from_home(home).is_none());
         }
+    }
+
+    #[test]
+    fn resume_command_uses_current_codex_resume_subcommand() {
+        let adapter = CodexAdapter::new();
+
+        assert_eq!(
+            adapter.resume_command("019e9481-bb65-72f3-a053-27f3c85d7671", ""),
+            "codex resume '019e9481-bb65-72f3-a053-27f3c85d7671'"
+        );
     }
 
     #[tokio::test]
