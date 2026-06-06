@@ -14,6 +14,11 @@ pub struct AppState {
     pub indexer: Arc<Indexer>,
 }
 
+#[tauri::command]
+pub fn get_platform() -> &'static str {
+    std::env::consts::OS
+}
+
 fn terminal_applescript() -> &'static str {
     "on run argv\n\
      tell application \"Terminal\"\n\
@@ -185,10 +190,11 @@ pub async fn launch_resume(state: State<'_, AppState>, session_id: String) -> Re
 
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "cmd", "/K", &cmd])
-            .spawn()
-            .map_err(|e| e.to_string())?;
+        let _ = cmd;
+        return Err(
+            "Automatic resume is not supported on Windows yet. Copy the command instead."
+                .to_string(),
+        );
     }
 
     Ok(())
@@ -309,5 +315,10 @@ mod tests {
     #[test]
     fn iterm_uses_an_executable_command_file() {
         assert_eq!(script_terminal_app_name("iterm"), Some("iTerm"));
+    }
+
+    #[test]
+    fn platform_name_matches_the_compilation_target() {
+        assert_eq!(get_platform(), std::env::consts::OS);
     }
 }

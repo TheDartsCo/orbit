@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::{AgentAdapter, SessionLocation};
+use super::{AgentAdapter, PlatformPaths, SessionLocation};
 use crate::models::{AgentType, FileTouch, Message, MessageRole, NormalizedSession, Session};
 
 const AIA_HISTORY_DIR: &str = "Library/Application Support/JetBrains";
@@ -31,6 +31,30 @@ impl JetBrainsAdapter {
         Self
     }
 
+    pub(crate) fn windows_candidate_data_dirs(paths: &PlatformPaths) -> Vec<PathBuf> {
+        [
+            paths.data_join("JetBrains"),
+            paths.data_local_join("JetBrains"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+
+    fn has_history_dir(path: &Path) -> bool {
+        std::fs::read_dir(path)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|entry| entry.path().join("aia-task-history").is_dir())
+    }
+
+    pub(crate) fn windows_data_dir(paths: &PlatformPaths) -> Option<PathBuf> {
+        Self::windows_candidate_data_dirs(paths)
+            .into_iter()
+            .find(|path| Self::has_history_dir(path))
+    }
+
     fn data_dir() -> Option<PathBuf> {
         if cfg!(target_os = "macos") {
             let home = dirs::home_dir()?;
@@ -44,8 +68,7 @@ impl JetBrainsAdapter {
             // To be implemented.
             None
         } else if cfg!(target_os = "windows") {
-            // To be implemented.
-            None
+            Self::windows_data_dir(&PlatformPaths::system())
         } else {
             None
         }

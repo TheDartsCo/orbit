@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use super::{AgentAdapter, SessionLocation};
+use super::{AgentAdapter, PlatformPaths, SessionLocation};
 use crate::models::{AgentType, Message, MessageRole, NormalizedSession, Session};
 
 const QODER_DB_PATH: &str = "Library/Application Support/Qoder/SharedClientCache/cache/db/local.db";
@@ -58,6 +58,26 @@ impl QoderAdapter {
         }
     }
 
+    pub(crate) fn windows_candidate_db_paths(paths: &PlatformPaths) -> Vec<PathBuf> {
+        [
+            paths.data_join("Qoder/SharedClientCache/cache/db/local.db"),
+            paths.data_local_join("Qoder/SharedClientCache/cache/db/local.db"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+
+    pub(crate) fn windows_db_path(paths: &PlatformPaths) -> Option<PathBuf> {
+        Self::windows_candidate_db_paths(paths)
+            .into_iter()
+            .find(|path| path.is_file())
+    }
+
+    pub(crate) fn windows_resume_command() -> &'static str {
+        "Start-Process Qoder"
+    }
+
     fn db_path() -> Option<PathBuf> {
         if cfg!(target_os = "macos") {
             let home = dirs::home_dir()?;
@@ -71,8 +91,7 @@ impl QoderAdapter {
             // To be implemented.
             None
         } else if cfg!(target_os = "windows") {
-            // To be implemented.
-            None
+            Self::windows_db_path(&PlatformPaths::system())
         } else {
             None
         }
@@ -410,7 +429,11 @@ impl AgentAdapter for QoderAdapter {
     }
 
     fn resume_command(&self, _session_id: &str, _project_path: &str) -> String {
-        "open -a Qoder".to_string()
+        if cfg!(target_os = "windows") {
+            Self::windows_resume_command().to_string()
+        } else {
+            "open -a Qoder".to_string()
+        }
     }
 
     async fn is_active(&self, session_path: &Path) -> bool {

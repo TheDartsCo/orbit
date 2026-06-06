@@ -4,7 +4,7 @@ use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use super::{AgentAdapter, SessionLocation};
+use super::{AgentAdapter, PlatformPaths, SessionLocation};
 use crate::models::*;
 
 pub struct CopilotAdapter;
@@ -20,6 +20,10 @@ impl CopilotAdapter {
         Self
     }
 
+    pub(crate) fn windows_data_dir(paths: &PlatformPaths) -> Option<PathBuf> {
+        paths.home_join(".copilot/session-state")
+    }
+
     fn data_dir() -> Option<PathBuf> {
         if cfg!(target_os = "macos") {
             let home = dirs::home_dir()?;
@@ -33,8 +37,7 @@ impl CopilotAdapter {
             // To be implemented.
             None
         } else if cfg!(target_os = "windows") {
-            // To be implemented.
-            None
+            Self::windows_data_dir(&PlatformPaths::system()).filter(|path| path.is_dir())
         } else {
             None
         }

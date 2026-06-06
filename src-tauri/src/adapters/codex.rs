@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::path::{Path, PathBuf};
 
-use super::{AgentAdapter, SessionLocation};
+use super::{AgentAdapter, PlatformPaths, SessionLocation};
 use crate::models::*;
 
 pub struct CodexAdapter;
@@ -10,6 +10,10 @@ pub struct CodexAdapter;
 impl CodexAdapter {
     pub fn new() -> Self {
         Self
+    }
+
+    pub(crate) fn windows_data_dir(paths: &PlatformPaths) -> Option<PathBuf> {
+        paths.home_join(".codex")
     }
 
     fn data_dir() -> Option<PathBuf> {
@@ -25,8 +29,7 @@ impl CodexAdapter {
             // To be implemented.
             None
         } else if cfg!(target_os = "windows") {
-            // To be implemented.
-            None
+            Self::windows_data_dir(&PlatformPaths::system()).filter(|path| path.is_dir())
         } else {
             None
         }

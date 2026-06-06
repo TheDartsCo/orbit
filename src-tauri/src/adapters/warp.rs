@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use super::{AgentAdapter, SessionLocation};
+use super::{AgentAdapter, PlatformPaths, SessionLocation};
 use crate::models::{AgentType, FileTouch, Message, MessageRole, NormalizedSession, Session};
 
 const WARP_DB_PATH: &str = "Library/Group Containers/2BBY89MBSN.dev.warp/Library/Application Support/dev.warp.Warp-Stable/warp.sqlite";
@@ -27,6 +27,29 @@ impl WarpAdapter {
         }
     }
 
+    pub(crate) fn windows_candidate_db_paths(paths: &PlatformPaths) -> Vec<PathBuf> {
+        [
+            paths.data_local_join("warp/Warp/data/warp.sqlite"),
+            paths.data_join("Warp/warp.sqlite"),
+            paths.data_join("dev.warp.Warp-Stable/warp.sqlite"),
+            paths.data_local_join("Warp/warp.sqlite"),
+            paths.data_local_join("dev.warp.Warp-Stable/warp.sqlite"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+
+    pub(crate) fn windows_db_path(paths: &PlatformPaths) -> Option<PathBuf> {
+        Self::windows_candidate_db_paths(paths)
+            .into_iter()
+            .find(|path| path.is_file())
+    }
+
+    pub(crate) fn windows_resume_command() -> &'static str {
+        "Start-Process Warp"
+    }
+
     fn db_path() -> Option<PathBuf> {
         if cfg!(target_os = "macos") {
             let home = dirs::home_dir()?;
@@ -40,8 +63,7 @@ impl WarpAdapter {
             // To be implemented.
             None
         } else if cfg!(target_os = "windows") {
-            // To be implemented.
-            None
+            Self::windows_db_path(&PlatformPaths::system())
         } else {
             None
         }
@@ -584,7 +606,11 @@ impl AgentAdapter for WarpAdapter {
     }
 
     fn resume_command(&self, _session_id: &str, _project_path: &str) -> String {
-        "open -a Warp".to_string()
+        if cfg!(target_os = "windows") {
+            Self::windows_resume_command().to_string()
+        } else {
+            "open -a Warp".to_string()
+        }
     }
 
     async fn is_active(&self, _session_path: &Path) -> bool {
