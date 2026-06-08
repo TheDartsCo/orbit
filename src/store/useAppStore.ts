@@ -1,8 +1,7 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import type { Session, Message, SessionFilters, IndexStats, SyncStatus, MessageRole, AgentType, TerminalInfo } from "../types";
-
-const ALL_AGENTS: AgentType[] = ["claude", "codex", "copilot", "cursor", "opencode", "warp", "qoder"];
+import { ALL_AGENTS, type Session, type Message, type SessionFilters, type IndexStats, type SyncStatus, type MessageRole, type AgentType, type TerminalInfo } from "../types";
+import { createDefaultEnabledRoles } from "./messageRoles";
 
 export type SortColumn = "agent" | "session" | "date" | "project" | "model" | "branch" | "tokens" | "files" | "messages";
 export type SortDirection = "asc" | "desc";
@@ -62,7 +61,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   indexError: null,
   indexStats: null,
   lastSyncAt: null,
-  enabledRoles: new Set<MessageRole>(["user", "assistant", "tool", "system"]),
+  enabledRoles: createDefaultEnabledRoles(),
   enabledAgents: new Set<AgentType>(ALL_AGENTS),
   sortConfig: null,
   availableTerminals: [],
@@ -90,7 +89,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   selectSession: async (id: string) => {
-    set({ selectedSessionId: id, messages: [], loading: true, messagesLoading: true, enabledRoles: new Set(["user", "assistant", "tool", "system"]) });
+    set({ selectedSessionId: id, messages: [], loading: true, messagesLoading: true, enabledRoles: createDefaultEnabledRoles() });
     try {
       const messages = await invoke<Message[]>("get_session_messages", {
         sessionId: id,

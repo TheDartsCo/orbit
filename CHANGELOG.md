@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.4.0
+
+### New Agent Adapter
+
+- **Antigravity** — parses JSONL transcripts from `~/.gemini/antigravity/brain/`; extracts user requests from `<USER_REQUEST>` blocks, planner responses with thinking, tool calls with file operations, and token usage estimates
+
 ## v0.1.0 — Initial Release
 
 First public release of Orbit, a native desktop app for browsing AI coding agent session history.

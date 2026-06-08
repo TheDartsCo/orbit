@@ -262,6 +262,7 @@ fn parser_version(adapter_id: &str) -> &'static str {
         "opencode" => "3",
         "qoder" => "3",
         "warp" => "3",
+        "jetbrains" => "3",
         _ => "0",
     }
 }

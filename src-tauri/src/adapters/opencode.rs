@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use super::{AgentAdapter, SessionLocation};
+use super::{AgentAdapter, PlatformPaths, SessionLocation};
 use crate::models::*;
 
 pub struct OpenCodeAdapter;
@@ -63,6 +63,26 @@ impl OpenCodeAdapter {
         dirs
     }
 
+    pub(crate) fn windows_candidate_data_dirs(paths: &PlatformPaths) -> Vec<PathBuf> {
+        [
+            paths.home_join(".local/share/opencode"),
+            paths.data_local_join("opencode"),
+            paths.data_join("opencode"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+
+    pub(crate) fn windows_resume_command(session_id: &str, project_path: &str) -> String {
+        let safe_path = crate::shell_quote::shell_quote(project_path);
+        let safe_session = crate::shell_quote::shell_quote(session_id);
+        format!(
+            "Set-Location {}; opencode --session {}",
+            safe_path, safe_session
+        )
+    }
+
     fn candidate_data_dirs() -> Vec<PathBuf> {
         if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
             Self::candidate_data_dirs_from_sources(
@@ -72,8 +92,7 @@ impl OpenCodeAdapter {
                 dirs::config_dir(),
             )
         } else if cfg!(target_os = "windows") {
-            // Windows paths are not currently mapped for this adapter.
-            Vec::new()
+            Self::windows_candidate_data_dirs(&PlatformPaths::system())
         } else {
             Vec::new()
         }
@@ -797,6 +816,10 @@ impl AgentAdapter for OpenCodeAdapter {
     }
 
     fn resume_command(&self, session_id: &str, project_path: &str) -> String {
+        if cfg!(target_os = "windows") {
+            return Self::windows_resume_command(session_id, project_path);
+        }
+
         let safe_path = crate::shell_quote::shell_quote(project_path);
         format!("cd {} && opencode --session {}", safe_path, session_id)
     }

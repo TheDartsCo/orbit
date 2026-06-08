@@ -1,13 +1,11 @@
 import { useMemo } from "react";
 import { useAppStore } from "../../store/useAppStore";
 import {
+  ALL_AGENTS,
   AGENT_LABELS,
   AGENT_TEXT_COLORS,
   AGENT_TINTS,
-  type AgentType,
 } from "../../types";
-
-const AGENTS: AgentType[] = ["claude", "codex", "copilot", "cursor", "opencode", "warp", "qoder"];
 
 export function FilterBar() {
   const enabledAgents = useAppStore((s) => s.enabledAgents);
@@ -26,7 +24,7 @@ export function FilterBar() {
 
   return (
     <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1">
-      {AGENTS.map((agent) => {
+      {ALL_AGENTS.map((agent) => {
         const active = enabledAgents.has(agent);
         return (
           <button

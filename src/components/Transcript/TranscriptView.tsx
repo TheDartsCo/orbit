@@ -4,6 +4,7 @@ import { useAppStore } from "../../store/useAppStore";
 import { MessageBubble } from "./MessageBubble";
 import { SearchNav } from "./SearchNav";
 import { Badge } from "../common/Badge";
+import { isDisplayableMessage } from "./messageVisibility";
 import type { MessageRole } from "../../types";
 
 const ROLES: { role: MessageRole; label: string; activeClass: string }[] = [
@@ -26,10 +27,7 @@ export function TranscriptView() {
 
   const parentRef = useRef<HTMLDivElement>(null);
 
-  const visibleMessages = messages.filter((m) => {
-    if (m.role === "user" && !m.content?.trim()) return false;
-    return true;
-  });
+  const visibleMessages = messages.filter(isDisplayableMessage);
 
   const filteredMessages = visibleMessages.filter((m) => enabledRoles.has(m.role as MessageRole));
 
@@ -74,10 +72,10 @@ export function TranscriptView() {
   return (
     <section className="flex min-h-0 flex-1 flex-col bg-bg-primary">
       <header className="border-b border-border bg-bg-secondary">
-        <div className="flex h-[58px] items-center gap-3 px-4">
+        <div className="flex min-h-[58px] items-start gap-3 px-4 py-3">
           {session && <Badge agent={session.agent} size="md" />}
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-sm font-semibold text-text-primary">
+            <h2 className="whitespace-normal break-words text-sm font-semibold leading-snug text-text-primary">
               {session?.title ?? "Transcript"}
             </h2>
             <p className="truncate text-xs text-text-muted">

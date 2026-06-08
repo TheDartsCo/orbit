@@ -2,6 +2,7 @@ import type { Message } from "../../types";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { ToolCall } from "./ToolCall";
 import { Bot, Terminal, User } from "lucide-react";
+import { isDisplayableMessage } from "./messageVisibility";
 
 interface MessageBubbleProps {
   message: Message;
@@ -9,6 +10,10 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, searchQuery }: MessageBubbleProps) {
+  if (!isDisplayableMessage(message)) {
+    return null;
+  }
+
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
   const isTool = message.role === "tool";
@@ -71,9 +76,7 @@ export function MessageBubble({ message, searchQuery }: MessageBubbleProps) {
             <div className="text-sm leading-6 text-text-primary">
               <MarkdownRenderer content={message.content} query={searchQuery} />
             </div>
-          ) : (
-            <div className="text-sm text-text-muted">Empty message</div>
-          )}
+          ) : null}
         </div>
       </div>
     </article>

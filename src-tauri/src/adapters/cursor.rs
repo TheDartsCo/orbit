@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use std::path::{Path, PathBuf};
 
-use super::{AgentAdapter, SessionLocation};
+use super::{AgentAdapter, PlatformPaths, SessionLocation};
 use crate::models::*;
 
 pub struct CursorAdapter;
@@ -15,19 +15,21 @@ impl CursorAdapter {
     fn data_dir_path_from_home(home: &Path) -> Option<PathBuf> {
         if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
             Some(home.join(".cursor"))
-        } else if cfg!(target_os = "windows") {
-            // Windows paths are not currently mapped for this adapter.
-            None
         } else {
             None
         }
     }
 
+    pub(crate) fn windows_data_dir(paths: &PlatformPaths) -> Option<PathBuf> {
+        paths.home_join(".cursor")
+    }
+
     fn data_dir() -> Option<PathBuf> {
-        let home = dirs::home_dir()?;
-        let cursor_dir = Self::data_dir_path_from_home(&home)?;
-        if cursor_dir.exists() {
-            Some(cursor_dir)
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            let home = dirs::home_dir()?;
+            Self::data_dir_path_from_home(&home).filter(|path| path.is_dir())
+        } else if cfg!(target_os = "windows") {
+            Self::windows_data_dir(&PlatformPaths::system()).filter(|path| path.is_dir())
         } else {
             None
         }

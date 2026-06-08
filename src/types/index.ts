@@ -3,9 +3,14 @@ export type AgentType =
   | "codex"
   | "copilot"
   | "cursor"
+  | "jetbrains"
   | "opencode"
   | "warp"
-  | "qoder";
+  | "qoder"
+  | "antigravity";
+
+export const ALL_AGENTS: AgentType[] = ["claude", "codex", "copilot", "cursor", "jetbrains", "opencode", "warp", "qoder", "antigravity"];
+
 export type MessageRole = "user" | "assistant" | "system" | "tool";
 export type AttachmentType = "image" | "file" | "diff";
 
@@ -89,9 +94,11 @@ export const AGENT_COLORS: Record<AgentType, string> = {
   codex: "bg-green-500",
   copilot: "bg-emerald-500",
   cursor: "bg-blue-500",
+  jetbrains: "bg-pink-500",
   opencode: "bg-orange-500",
   warp: "bg-teal-500",
   qoder: "bg-indigo-500",
+  antigravity: "bg-violet-500",
 };
 
 export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
@@ -99,9 +106,11 @@ export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
   codex: "text-blue-400",
   copilot: "text-emerald-300",
   cursor: "text-cyan-300",
+  jetbrains: "text-pink-300",
   opencode: "text-fuchsia-300",
   warp: "text-teal-300",
   qoder: "text-indigo-300",
+  antigravity: "text-violet-300",
 };
 
 export const AGENT_TINTS: Record<AgentType, string> = {
@@ -109,9 +118,11 @@ export const AGENT_TINTS: Record<AgentType, string> = {
   codex: "bg-blue-400/10 border-blue-400/20",
   copilot: "bg-emerald-400/10 border-emerald-400/20",
   cursor: "bg-cyan-400/10 border-cyan-400/20",
+  jetbrains: "bg-pink-400/10 border-pink-400/20",
   opencode: "bg-fuchsia-400/10 border-fuchsia-400/20",
   warp: "bg-teal-400/10 border-teal-400/20",
   qoder: "bg-indigo-400/10 border-indigo-400/20",
+  antigravity: "bg-violet-400/10 border-violet-400/20",
 };
 
 export const AGENT_LABELS: Record<AgentType, string> = {
@@ -119,9 +130,11 @@ export const AGENT_LABELS: Record<AgentType, string> = {
   codex: "Codex",
   copilot: "Copilot",
   cursor: "Cursor",
+  jetbrains: "JetBrains AI",
   opencode: "OpenCode",
   warp: "Warp",
   qoder: "Qoder",
+  antigravity: "Antigravity",
 };
 
 export interface TerminalInfo {

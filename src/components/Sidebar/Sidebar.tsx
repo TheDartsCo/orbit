@@ -20,6 +20,7 @@ import { SearchBar } from "./SearchBar";
 import { SessionList } from "./SessionList";
 import { SyncStatsModal } from "./SyncStatsModal";
 import {
+  ALL_AGENTS,
   AGENT_LABELS,
   AGENT_TEXT_COLORS,
   AGENT_TINTS,
@@ -55,7 +56,6 @@ const DEFAULT_VISIBLE = new Set<ColumnId>([
   "agent", "session", "date", "project", "tokens", "messages",
 ]);
 
-const AGENTS: AgentType[] = ["claude", "codex", "copilot", "cursor", "opencode", "warp", "qoder"];
 const FILTERABLE_COLUMNS = new Set<ColumnId>(["agent", "session", "project", "model", "branch"]);
 
 function formatTimeAgo(iso: string): string {
@@ -137,7 +137,7 @@ export function Sidebar({ width }: SidebarProps) {
 
   const agentCounts = useMemo(() => {
     const counts = new Map<AgentType, number>();
-    for (const agent of AGENTS) counts.set(agent, 0);
+    for (const agent of ALL_AGENTS) counts.set(agent, 0);
     for (const session of sessions) {
       counts.set(session.agent, (counts.get(session.agent) ?? 0) + 1);
     }
@@ -147,7 +147,7 @@ export function Sidebar({ width }: SidebarProps) {
   const activeAgentCount = enabledAgents.size;
   const hasActiveColumnFilter = useCallback(
     (columnId: ColumnId) =>
-      (columnId === "agent" && activeAgentCount !== AGENTS.length) ||
+      (columnId === "agent" && activeAgentCount !== ALL_AGENTS.length) ||
       (columnId === "session" && Boolean(filters.title)) ||
       (columnId === "project" && Boolean(filters.project_path)) ||
       (columnId === "model" && Boolean(filters.model)) ||
@@ -236,14 +236,14 @@ export function Sidebar({ width }: SidebarProps) {
                   setAgentMenuOpen((open) => !open);
                 }}
                 className={`flex h-6 w-full min-w-0 items-center justify-between gap-1 rounded-md border px-2 text-[11px] font-medium shadow-inner transition-colors ${
-                  activeAgentCount === AGENTS.length
+                  activeAgentCount === ALL_AGENTS.length
                     ? "border-border/70 bg-bg-primary/45 text-text-muted hover:border-border-light hover:bg-bg-hover/60"
                     : "border-accent/40 bg-accent/10 text-accent"
                 }`}
                 aria-label="Filter agents"
               >
                 <span className="truncate">
-                  {activeAgentCount === AGENTS.length
+                  {activeAgentCount === ALL_AGENTS.length
                     ? "All agents"
                     : `${activeAgentCount} agent${activeAgentCount === 1 ? "" : "s"}`}
                 </span>
@@ -257,7 +257,7 @@ export function Sidebar({ width }: SidebarProps) {
                   <div className="mb-1 flex items-center gap-1 border-b border-border pb-1">
                     <button
                       type="button"
-                      onClick={() => setEnabledAgents(AGENTS)}
+                      onClick={() => setEnabledAgents(ALL_AGENTS)}
                       className="flex-1 rounded px-2 py-1 text-[11px] font-semibold text-text-secondary hover:bg-bg-hover"
                     >
                       All
@@ -270,7 +270,7 @@ export function Sidebar({ width }: SidebarProps) {
                       None
                     </button>
                   </div>
-                  {AGENTS.map((agent) => {
+                  {ALL_AGENTS.map((agent) => {
                     const active = enabledAgents.has(agent);
                     return (
                       <button

@@ -3,8 +3,8 @@ pub mod commands;
 pub mod db;
 pub mod indexer;
 pub mod models;
-pub mod watcher;
 pub mod shell_quote;
+pub mod watcher;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -40,6 +40,7 @@ pub fn run() {
             commands::get_sessions,
             commands::get_session_messages,
             commands::search_sessions,
+            commands::get_platform,
             commands::get_resume_command,
             commands::launch_resume,
             commands::get_active_sessions,

@@ -9,8 +9,10 @@ pub enum AgentType {
     Copilot,
     Cursor,
     OpenCode,
+    JetBrains,
     Warp,
     Qoder,
+    Antigravity,
 }
 
 impl AgentType {
@@ -21,8 +23,10 @@ impl AgentType {
             AgentType::Copilot => "copilot",
             AgentType::Cursor => "cursor",
             AgentType::OpenCode => "opencode",
+            AgentType::JetBrains => "jetbrains",
             AgentType::Warp => "warp",
             AgentType::Qoder => "qoder",
+            AgentType::Antigravity => "antigravity",
         }
     }
 
@@ -33,8 +37,10 @@ impl AgentType {
             "copilot" => Some(AgentType::Copilot),
             "cursor" => Some(AgentType::Cursor),
             "opencode" => Some(AgentType::OpenCode),
+            "jetbrains" => Some(AgentType::JetBrains),
             "warp" => Some(AgentType::Warp),
             "qoder" => Some(AgentType::Qoder),
+            "antigravity" => Some(AgentType::Antigravity),
             _ => None,
         }
     }

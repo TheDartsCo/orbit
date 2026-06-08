@@ -10,6 +10,7 @@ remotion/
 .commandcode/
 .serena/
 .worktrees/
+.vscode/
 
 # Stakpak session files
 .stakpak/session*

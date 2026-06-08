@@ -19,12 +19,12 @@
 </p>
 
 Orbit is a native session browser for AI coding agents. It finds the session
-history already stored on your machine, normalizes it into one local index, and
+history already stored on your computer, normalizes it into one local index, and
 gives you a fast way to search, filter, read, and resume past work.
 
-Orbit v0.1 is **macOS-first for release builds**. Local Linux development
-support is available for Claude Code, Codex, Cursor, and OpenCode. Linux
-release packages are not published or fully tested yet.
+Orbit is **macOS-first** for release builds, with experimental Windows session
+discovery and local Linux development support for Claude Code, Codex, Cursor,
+and OpenCode. Linux release packages are not published or fully tested yet.
 
 ## Why Orbit
 
@@ -97,17 +97,24 @@ their source session files.
 
 ## Supported agents
 
-| Agent | macOS discovery | Linux local dev discovery | Transcript parsing | Resume |
-| --- | --- | --- | --- | --- |
-| Claude Code | Yes | Yes | Yes | Yes |
-| Codex | Yes | Yes | Yes | Yes |
-| GitHub Copilot CLI | Yes | Not yet | Yes | Yes on macOS |
-| Cursor | Yes | Yes | Yes | Opens project |
-| OpenCode | Yes | Yes | Yes | Yes |
-| Warp | Yes | Not yet | Yes | Not yet |
-| Qoder | Yes | Not yet | Yes | Not yet |
+| Agent | Transcript | macOS discovery | macOS resume | Windows discovery | Windows resume | Linux local dev |
+| --- | :---: | :---: | --- | :---: | --- | :---: |
+| Antigravity | ✅ | ✅ | Not available | 🧪 | 📋 Copy command | Planned |
+| Claude Code | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | ✅ Launch |
+| Codex | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | ✅ Launch |
+| Cursor | ✅ | ✅ | Opens project | 🧪 | 📋 Copy command | ✅ Opens project |
+| GitHub Copilot CLI | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | Planned |
+| JetBrains AI | ✅ | ✅ | Not available | 🧪 | 📋 Session ID | Planned |
+| OpenCode | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | ✅ Launch |
+| Qoder | ✅ | ✅ | Opens Qoder | 🧪 | 📋 Copy command | Planned |
+| Warp | ✅ | ✅ | Opens Warp | 🧪 | 📋 Copy command | Planned |
 
-Transcript parsing and resume apply on platforms where discovery is supported.
+**Legend:** ✅ supported · 🧪 implemented and unit-tested, native Windows
+verification pending · 📋 shown in a copyable Windows dialog
+
+On Windows, Orbit discovers and parses local sessions but does not launch
+resume commands automatically yet. Clicking **Resume** shows the session ID
+and available command so you can copy them.
 
 Linux local dev support means the app can be built and run from source on a
 Linux desktop with Tauri prerequisites installed. Published Linux release
@@ -129,32 +136,30 @@ hashes, and removes stale entries after every complete scan.
 The frontend talks to the backend through Tauri commands. Session and transcript
 lists are virtualized so large histories remain responsive.
 
-The local database uses the platform data directory. On macOS it usually lives
-at:
+The local database lives in the platform data directory:
 
 ```text
-~/Library/Application Support/orbit/orbit.db
-```
-
-On Linux it usually lives under:
-
-```text
-~/.local/share/orbit/orbit.db
+macOS:   ~/Library/Application Support/orbit/orbit.db
+Windows: %APPDATA%\orbit\orbit.db
+Linux:   ~/.local/share/orbit/orbit.db
 ```
 
 Deleting that database only removes Orbit's index. Your original agent sessions
 remain untouched and can be indexed again.
 
-## v0.1 limitations
+## Platform status
 
-- macOS is the only release-tested platform.
+- macOS is the primary development and release platform.
+- Windows adapter discovery is implemented and unit-tested, but still needs
+  native Windows build and runtime verification.
 - Linux is supported for local development with Claude Code, Codex, Cursor, and
   OpenCode discovery.
 - App bundles are not signed or notarized yet.
 - Session formats can change when agent vendors update their tools.
 - Orbit refreshes sessions on manual reindex; live file watching is not enabled
   yet.
-- Resume behavior depends on the source agent and your installed terminal.
+- Automatic resume launching is supported on macOS and Linux where the adapter
+  supports resume. Windows uses copyable session details for now.
 
 ## Development
 
