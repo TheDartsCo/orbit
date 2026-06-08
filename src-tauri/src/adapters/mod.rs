@@ -6,6 +6,7 @@ pub mod jetbrains;
 pub mod opencode;
 pub mod qoder;
 pub mod warp;
+pub mod antigravity;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -235,6 +236,7 @@ impl AdapterRegistry {
         reg.register(Box::new(opencode::OpenCodeAdapter::new()));
         reg.register(Box::new(qoder::QoderAdapter::new()));
         reg.register(Box::new(warp::WarpAdapter::new()));
+        reg.register(Box::new(antigravity::AntigravityAdapter::new()));
         reg
     }
 

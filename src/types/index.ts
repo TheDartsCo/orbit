@@ -6,9 +6,10 @@ export type AgentType =
   | "jetbrains"
   | "opencode"
   | "warp"
-  | "qoder";
+  | "qoder"
+  | "antigravity";
 
-export const ALL_AGENTS: AgentType[] = ["claude", "codex", "copilot", "cursor", "jetbrains", "opencode", "warp", "qoder"];
+export const ALL_AGENTS: AgentType[] = ["claude", "codex", "copilot", "cursor", "jetbrains", "opencode", "warp", "qoder", "antigravity"];
 
 export type MessageRole = "user" | "assistant" | "system" | "tool";
 export type AttachmentType = "image" | "file" | "diff";
@@ -97,6 +98,7 @@ export const AGENT_COLORS: Record<AgentType, string> = {
   opencode: "bg-orange-500",
   warp: "bg-teal-500",
   qoder: "bg-indigo-500",
+  antigravity: "bg-violet-500",
 };
 
 export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
@@ -108,6 +110,7 @@ export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
   opencode: "text-fuchsia-300",
   warp: "text-teal-300",
   qoder: "text-indigo-300",
+  antigravity: "text-violet-300",
 };
 
 export const AGENT_TINTS: Record<AgentType, string> = {
@@ -119,6 +122,7 @@ export const AGENT_TINTS: Record<AgentType, string> = {
   opencode: "bg-fuchsia-400/10 border-fuchsia-400/20",
   warp: "bg-teal-400/10 border-teal-400/20",
   qoder: "bg-indigo-400/10 border-indigo-400/20",
+  antigravity: "bg-violet-400/10 border-violet-400/20",
 };
 
 export const AGENT_LABELS: Record<AgentType, string> = {
@@ -130,6 +134,7 @@ export const AGENT_LABELS: Record<AgentType, string> = {
   opencode: "OpenCode",
   warp: "Warp",
   qoder: "Qoder",
+  antigravity: "Antigravity",
 };
 
 export interface TerminalInfo {

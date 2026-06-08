@@ -25,9 +25,19 @@ export function ActionBar() {
 
   if (!session) return null;
 
-  const resumeDisabled = session.agent === "jetbrains";
+  const resumeDisabled = session.agent === "jetbrains" || session.agent === "antigravity";
   const launchDisabled =
     platform === null || (resumeDisabled && platform !== "windows");
+
+  const getResumeMessage = () => {
+    if (session.agent === "jetbrains") {
+      return "JetBrains AI sessions cannot be resumed from Orbit";
+    }
+    if (session.agent === "antigravity") {
+      return "Antigravity sessions cannot be resumed from Orbit";
+    }
+    return undefined;
+  };
 
   const handleCopyResume = async () => {
     if (resumeDisabled) return;
@@ -90,11 +100,7 @@ export function ActionBar() {
           <button
             onClick={handleCopyResume}
             disabled={resumeDisabled}
-            title={
-              resumeDisabled
-                ? "JetBrains AI sessions cannot be resumed from Orbit"
-                : undefined
-            }
+            title={getResumeMessage()}
             className="flex items-center gap-1.5 rounded-md bg-bg-tertiary px-3 py-1.5 text-xs font-semibold text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-bg-tertiary disabled:hover:text-text-secondary"
           >
             <Copy className="h-3.5 w-3.5" />
@@ -105,7 +111,7 @@ export function ActionBar() {
             disabled={launchDisabled}
             title={
               resumeDisabled && platform !== "windows"
-                ? "JetBrains AI sessions cannot be resumed from Orbit"
+                ? getResumeMessage()
                 : undefined
             }
             className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-accent"
