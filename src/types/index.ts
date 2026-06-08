@@ -9,7 +9,7 @@ export type AgentType =
   | "qoder"
   | "antigravity";
 
-export const ALL_AGENTS: AgentType[] = ["claude", "codex", "copilot", "cursor", "jetbrains", "opencode", "warp", "qoder", "antigravity"];
+export const ALL_AGENTS: AgentType[] = ["antigravity", "claude", "codex", "copilot", "cursor", "jetbrains", "opencode", "qoder", "warp"];
 
 export type MessageRole = "user" | "assistant" | "system" | "tool";
 export type AttachmentType = "image" | "file" | "diff";
