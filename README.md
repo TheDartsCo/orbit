@@ -24,7 +24,8 @@ gives you a fast way to search, filter, read, and resume past work.
 
 Orbit is **macOS-first** for release builds, with experimental Windows session
 discovery and local Linux development support for Claude Code, Codex, Cursor,
-and OpenCode. Linux release packages are not published or fully tested yet.
+and OpenCode. AppImage generation is locally verified on the current Ubuntu
+development machine, but broader Linux release support is not claimed yet.
 
 ## Why Orbit
 
@@ -84,6 +85,28 @@ npm run tauri build
 
 The packaged app is written to `src-tauri/target/release/bundle/`.
 
+To build only a local Linux AppImage on Ubuntu:
+
+```bash
+npm run build:linux:appimage
+```
+
+The AppImage is written to:
+
+```text
+src-tauri/target/release/bundle/appimage/
+```
+
+To run it locally:
+
+```bash
+chmod +x src-tauri/target/release/bundle/appimage/*.AppImage
+./src-tauri/target/release/bundle/appimage/*.AppImage
+```
+
+This AppImage is verified only on the current Ubuntu development machine. A
+portable Linux release should be built on an older supported Linux baseline.
+
 ## Use Orbit
 
 1. Open Orbit.
@@ -117,7 +140,8 @@ resume commands automatically yet. Clicking **Resume** shows the session ID
 and available command so you can copy them.
 
 Linux local dev support means the app can be built and run from source on a
-Linux desktop with Tauri prerequisites installed. Published Linux release
+Linux desktop with Tauri prerequisites installed. Local AppImage generation is
+available on the current Ubuntu development machine, but published Linux release
 packages are still outside the v0.1 support boundary.
 
 Agent storage formats are private implementation details and can change without
@@ -153,7 +177,8 @@ remain untouched and can be indexed again.
 - Windows adapter discovery is implemented and unit-tested, but still needs
   native Windows build and runtime verification.
 - Linux is supported for local development with Claude Code, Codex, Cursor, and
-  OpenCode discovery.
+  OpenCode discovery. Local AppImage generation is verified on the current
+  Ubuntu development machine only.
 - App bundles are not signed or notarized yet.
 - Session formats can change when agent vendors update their tools.
 - Orbit refreshes sessions on manual reindex; live file watching is not enabled
