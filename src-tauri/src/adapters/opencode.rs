@@ -151,17 +151,43 @@ impl OpenCodeAdapter {
         }
     }
 
-    fn scan_session_diff_markers(data_dir: &Path, locations: &mut Vec<SessionLocation>) {
-        let session_diff_dir = data_dir.join("storage/session_diff");
-        if let Ok(entries) = std::fs::read_dir(session_diff_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.extension().and_then(|e| e.to_str()) == Some("json") {
+    fn scan_db_sessions(data_dir: &Path, locations: &mut Vec<SessionLocation>) {
+        let db_path = data_dir.join("opencode.db");
+        let conn = match Connection::open_with_flags(
+            &db_path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        ) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!("Failed to open OpenCode DB at {:?}: {}", db_path, e);
+                return;
+            }
+        };
+        let mut stmt = match conn.prepare("SELECT id, time_updated FROM session") {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!("Failed to prepare OpenCode session query: {}", e);
+                return;
+            }
+        };
+        let rows = match stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))) {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::error!("Failed to query_map OpenCode sessions: {}", e);
+                return;
+            }
+        };
+
+        let marker_dir = data_dir.join("storage/session_diff");
+        for row in rows {
+            match row {
+                Ok((id, time_updated)) => {
                     locations.push(SessionLocation {
-                        last_modified: Self::modified_at(&path),
-                        path,
+                        last_modified: Self::timestamp_from_millis(Some(time_updated)).unwrap_or_default(),
+                        path: marker_dir.join(format!("{}.json", id)),
                     });
                 }
+                Err(e) => tracing::error!("Failed to read OpenCode session row: {}", e),
             }
         }
     }
@@ -198,9 +224,10 @@ impl OpenCodeAdapter {
 
             let mut root_locations = Vec::new();
             if data_dir.join("opencode.db").is_file() {
-                Self::scan_session_diff_markers(&data_dir, &mut root_locations);
+                Self::scan_db_sessions(&data_dir, &mut root_locations);
+            } else {
+                Self::scan_storage_sessions(&data_dir.join("storage/session"), &mut root_locations);
             }
-            Self::scan_storage_sessions(&data_dir.join("storage/session"), &mut root_locations);
             Self::scan_legacy_jsonl(&data_dir.join("sessions"), &mut root_locations);
 
             for location in root_locations {
@@ -884,12 +911,12 @@ mod tests {
         std::fs::create_dir_all(root_a.join("storage/session/project_123")).unwrap();
         std::fs::create_dir_all(root_a.join("storage/session_diff")).unwrap();
         std::fs::create_dir_all(root_b.join("sessions/project_456")).unwrap();
-        std::fs::write(root_a.join("opencode.db"), "").unwrap();
+
         let storage_path = root_a.join("storage/session/project_123/ses_storage.json");
-        let marker_path = root_a.join("storage/session_diff/ses_db.json");
+
         let legacy_path = root_b.join("sessions/project_456/ses_legacy.jsonl");
         std::fs::write(&storage_path, "{}").unwrap();
-        std::fs::write(&marker_path, "{}").unwrap();
+
         std::fs::write(&legacy_path, "{}").unwrap();
 
         let locations =
@@ -897,7 +924,7 @@ mod tests {
         let mut paths: Vec<_> = locations.into_iter().map(|loc| loc.path).collect();
         paths.sort();
 
-        let mut expected = vec![storage_path, marker_path, legacy_path];
+        let mut expected = vec![storage_path, legacy_path];
         expected.sort();
         assert_eq!(paths, expected);
     }
