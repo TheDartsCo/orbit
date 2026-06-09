@@ -12,22 +12,22 @@ impl CodexAdapter {
         Self
     }
 
+    fn data_dir_path_from_home(home: &Path) -> Option<PathBuf> {
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            Some(home.join(".codex"))
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn windows_data_dir(paths: &PlatformPaths) -> Option<PathBuf> {
         paths.home_join(".codex")
     }
 
     fn data_dir() -> Option<PathBuf> {
-        if cfg!(target_os = "macos") {
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
             let home = dirs::home_dir()?;
-            let codex_dir = home.join(".codex");
-            if codex_dir.exists() {
-                Some(codex_dir)
-            } else {
-                None
-            }
-        } else if cfg!(target_os = "linux") {
-            // To be implemented.
-            None
+            Self::data_dir_path_from_home(&home).filter(|path| path.is_dir())
         } else if cfg!(target_os = "windows") {
             Self::windows_data_dir(&PlatformPaths::system()).filter(|path| path.is_dir())
         } else {
@@ -539,7 +539,7 @@ impl AgentAdapter for CodexAdapter {
 
     fn resume_command(&self, session_id: &str, _project_path: &str) -> String {
         let safe = crate::shell_quote::shell_quote(session_id);
-        format!("codex --resume {}", safe)
+        format!("codex resume {}", safe)
     }
 
     async fn is_active(&self, _session_path: &Path) -> bool {
@@ -551,6 +551,30 @@ impl AgentAdapter for CodexAdapter {
 mod tests {
     use super::*;
     use crate::adapters::AgentAdapter;
+
+    #[test]
+    fn data_dir_path_from_home_uses_dot_codex_on_unix() {
+        let home = std::path::Path::new("/home/orbit-user");
+
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            assert_eq!(
+                CodexAdapter::data_dir_path_from_home(home),
+                Some(home.join(".codex"))
+            );
+        } else {
+            assert!(CodexAdapter::data_dir_path_from_home(home).is_none());
+        }
+    }
+
+    #[test]
+    fn resume_command_uses_current_codex_resume_subcommand() {
+        let adapter = CodexAdapter::new();
+
+        assert_eq!(
+            adapter.resume_command("019e9481-bb65-72f3-a053-27f3c85d7671", ""),
+            "codex resume '019e9481-bb65-72f3-a053-27f3c85d7671'"
+        );
+    }
 
     #[tokio::test]
     async fn parses_subagent_rollout_with_parent_thread_id() {

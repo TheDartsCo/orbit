@@ -16,13 +16,29 @@ fixtures to the smallest sanitized example that still reproduces the behavior.
 
 ## Local setup
 
-Orbit v0.1 development is tested on macOS.
+Orbit v0.1 release builds are tested on macOS. Local Linux development is
+supported for Claude Code, Codex, Cursor, and OpenCode adapters.
 
 You need:
 
 - Node.js 18 or newer
 - Rust and Cargo
 - The [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/)
+
+On Ubuntu/Debian, install Tauri's Linux development dependencies:
+
+```bash
+sudo apt update
+sudo apt install libwebkit2gtk-4.1-dev \
+  build-essential \
+  curl \
+  wget \
+  file \
+  libxdo-dev \
+  libssl-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev
+```
 
 ```bash
 git clone https://github.com/TheDartsCo/orbit.git

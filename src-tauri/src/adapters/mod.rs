@@ -1,3 +1,4 @@
+pub mod antigravity;
 pub mod claude;
 pub mod codex;
 pub mod copilot;
@@ -6,7 +7,6 @@ pub mod jetbrains;
 pub mod opencode;
 pub mod qoder;
 pub mod warp;
-pub mod antigravity;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};

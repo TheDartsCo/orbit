@@ -217,8 +217,7 @@ impl<'a> DbQueries<'a> {
 
         if let Some(ref title) = filters.title {
             if !title.is_empty() {
-                let like_pattern =
-                    format!("%{}%", title.replace('%', "\\%").replace('_', "\\_"));
+                let like_pattern = format!("%{}%", title.replace('%', "\\%").replace('_', "\\_"));
                 sql.push_str(&format!(" AND title LIKE ?{} ESCAPE '\\'", param_idx));
                 param_values.push(Box::new(like_pattern));
                 param_idx += 1;
@@ -227,9 +226,11 @@ impl<'a> DbQueries<'a> {
 
         if let Some(ref project) = filters.project_path {
             if !project.is_empty() {
-                let like_pattern =
-                    format!("%{}%", project.replace('%', "\\%").replace('_', "\\_"));
-                sql.push_str(&format!(" AND project_path LIKE ?{} ESCAPE '\\'", param_idx));
+                let like_pattern = format!("%{}%", project.replace('%', "\\%").replace('_', "\\_"));
+                sql.push_str(&format!(
+                    " AND project_path LIKE ?{} ESCAPE '\\'",
+                    param_idx
+                ));
                 param_values.push(Box::new(like_pattern));
                 param_idx += 1;
             }
@@ -237,8 +238,7 @@ impl<'a> DbQueries<'a> {
 
         if let Some(ref model) = filters.model {
             if !model.is_empty() {
-                let like_pattern =
-                    format!("%{}%", model.replace('%', "\\%").replace('_', "\\_"));
+                let like_pattern = format!("%{}%", model.replace('%', "\\%").replace('_', "\\_"));
                 sql.push_str(&format!(" AND model LIKE ?{} ESCAPE '\\'", param_idx));
                 param_values.push(Box::new(like_pattern));
                 param_idx += 1;

@@ -3,8 +3,8 @@ pub mod commands;
 pub mod db;
 pub mod indexer;
 pub mod models;
-pub mod watcher;
 pub mod shell_quote;
+pub mod watcher;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;

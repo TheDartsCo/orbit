@@ -12,22 +12,22 @@ impl CursorAdapter {
         Self
     }
 
+    fn data_dir_path_from_home(home: &Path) -> Option<PathBuf> {
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            Some(home.join(".cursor"))
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn windows_data_dir(paths: &PlatformPaths) -> Option<PathBuf> {
         paths.home_join(".cursor")
     }
 
     fn data_dir() -> Option<PathBuf> {
-        if cfg!(target_os = "macos") {
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
             let home = dirs::home_dir()?;
-            let cursor_dir = home.join(".cursor");
-            if cursor_dir.exists() {
-                Some(cursor_dir)
-            } else {
-                None
-            }
-        } else if cfg!(target_os = "linux") {
-            // To be implemented.
-            None
+            Self::data_dir_path_from_home(&home).filter(|path| path.is_dir())
         } else if cfg!(target_os = "windows") {
             Self::windows_data_dir(&PlatformPaths::system()).filter(|path| path.is_dir())
         } else {
@@ -73,26 +73,34 @@ fn find_session_jsonl(root: &Path, locations: &mut Vec<SessionLocation>) {
                 continue;
             }
 
-            let jsonl_path = session_dir.join(format!("{}.jsonl", session_name));
-            if !jsonl_path.is_file() {
+            let Ok(session_files) = std::fs::read_dir(&session_dir) else {
                 continue;
+            };
+
+            for session_file in session_files.flatten() {
+                let jsonl_path = session_file.path();
+                if !jsonl_path.is_file()
+                    || jsonl_path.extension().and_then(|e| e.to_str()) != Some("jsonl")
+                {
+                    continue;
+                }
+
+                let modified = std::fs::metadata(&jsonl_path)
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| {
+                        DateTime::from_timestamp(
+                            t.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64,
+                            0,
+                        )
+                    })
+                    .unwrap_or_default();
+
+                locations.push(SessionLocation {
+                    path: jsonl_path,
+                    last_modified: modified,
+                });
             }
-
-            let modified = std::fs::metadata(&jsonl_path)
-                .ok()
-                .and_then(|m| m.modified().ok())
-                .and_then(|t| {
-                    DateTime::from_timestamp(
-                        t.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64,
-                        0,
-                    )
-                })
-                .unwrap_or_default();
-
-            locations.push(SessionLocation {
-                path: jsonl_path,
-                last_modified: modified,
-            });
         }
     }
 }
@@ -356,10 +364,9 @@ impl AgentAdapter for CursorAdapter {
                                     .unwrap_or(serde_json::Value::Null);
                                 if let Some(fp) = cursor_extract_file_path(&name, &input_value) {
                                     if project_path.is_empty() {
-                                        project_path = infer_project_from_file_path(
-                                                &fp, encoded_project,
-                                            )
-                                            .unwrap_or_else(|| encoded_project.to_string());
+                                        project_path =
+                                            infer_project_from_file_path(&fp, encoded_project)
+                                                .unwrap_or_else(|| encoded_project.to_string());
                                     }
                                     let op = cursor_file_operation_for(&name);
                                     file_touches.push(FileTouch {
@@ -469,6 +476,20 @@ mod tests {
         transcripts
     }
 
+    #[test]
+    fn data_dir_path_from_home_uses_dot_cursor_on_unix() {
+        let home = std::path::Path::new("/home/orbit-user");
+
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            assert_eq!(
+                CursorAdapter::data_dir_path_from_home(home),
+                Some(home.join(".cursor"))
+            );
+        } else {
+            assert!(CursorAdapter::data_dir_path_from_home(home).is_none());
+        }
+    }
+
     #[tokio::test]
     async fn scan_finds_jsonl_sessions_in_agent_transcripts() {
         let tmp = TempDir::new().unwrap();
@@ -512,6 +533,35 @@ mod tests {
                 path_str
             );
         }
+    }
+
+    #[tokio::test]
+    async fn scan_finds_direct_jsonl_with_different_basename_and_skips_nested_subagents() {
+        let tmp = TempDir::new().unwrap();
+        let transcripts = setup_cursor_layout(tmp.path());
+        let session_dir = transcripts.join("33333333-3333-3333-3333-333333333333");
+        fs::create_dir_all(&session_dir).unwrap();
+
+        let direct_path = session_dir.join("conversation.jsonl");
+        fs::write(
+            &direct_path,
+            "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"direct\"}]}}\n",
+        )
+        .unwrap();
+
+        let subagent_dir = session_dir.join("subagents");
+        fs::create_dir_all(&subagent_dir).unwrap();
+        fs::write(
+            subagent_dir.join("sub.jsonl"),
+            "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"sub\"}]}}\n",
+        )
+        .unwrap();
+
+        let adapter = CursorAdapter::new();
+        let locations = scan_with_root(&adapter, tmp.path()).await;
+        let paths: Vec<&Path> = locations.iter().map(|loc| loc.path.as_path()).collect();
+
+        assert_eq!(paths, vec![direct_path.as_path()]);
     }
 
     #[tokio::test]

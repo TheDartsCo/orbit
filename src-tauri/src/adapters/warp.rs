@@ -675,7 +675,9 @@ mod tests {
     #[test]
     fn warp_file_touches_skips_empty_paths() {
         let read = ReadFiles {
-            file_paths: vec![FilePathEntry { path: String::new() }],
+            file_paths: vec![FilePathEntry {
+                path: String::new(),
+            }],
         };
         let tc = ToolCall {
             tool_call_id: "tc1".to_string(),

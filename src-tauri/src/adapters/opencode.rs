@@ -38,6 +38,31 @@ impl OpenCodeAdapter {
         Self
     }
 
+    fn candidate_data_dirs_from_sources(
+        home: Option<PathBuf>,
+        data_local: Option<PathBuf>,
+        data: Option<PathBuf>,
+        config: Option<PathBuf>,
+    ) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        let mut seen = HashSet::new();
+
+        let mut push = |path: Option<PathBuf>| {
+            if let Some(path) = path {
+                if seen.insert(path.clone()) {
+                    dirs.push(path);
+                }
+            }
+        };
+
+        push(home.map(|home| home.join(".local/share/opencode")));
+        push(data_local.map(|dir| dir.join("opencode")));
+        push(data.map(|dir| dir.join("opencode")));
+        push(config.map(|dir| dir.join("opencode")));
+
+        dirs
+    }
+
     pub(crate) fn windows_candidate_data_dirs(paths: &PlatformPaths) -> Vec<PathBuf> {
         [
             paths.home_join(".local/share/opencode"),
@@ -59,27 +84,13 @@ impl OpenCodeAdapter {
     }
 
     fn candidate_data_dirs() -> Vec<PathBuf> {
-        if cfg!(target_os = "macos") {
-            let mut dirs = Vec::new();
-            let mut seen = HashSet::new();
-
-            let mut push = |path: Option<PathBuf>| {
-                if let Some(path) = path {
-                    if seen.insert(path.clone()) {
-                        dirs.push(path);
-                    }
-                }
-            };
-
-            push(dirs::home_dir().map(|home| home.join(".local/share/opencode")));
-            push(dirs::data_local_dir().map(|dir| dir.join("opencode")));
-            push(dirs::data_dir().map(|dir| dir.join("opencode")));
-            push(dirs::config_dir().map(|dir| dir.join("opencode")));
-
-            dirs
-        } else if cfg!(target_os = "linux") {
-            // To be implemented.
-            Vec::new()
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            Self::candidate_data_dirs_from_sources(
+                dirs::home_dir(),
+                dirs::data_local_dir(),
+                dirs::data_dir(),
+                dirs::config_dir(),
+            )
         } else if cfg!(target_os = "windows") {
             Self::windows_candidate_data_dirs(&PlatformPaths::system())
         } else {
@@ -87,19 +98,28 @@ impl OpenCodeAdapter {
         }
     }
 
-    fn data_dir() -> Option<PathBuf> {
-        Self::candidate_data_dirs()
-            .into_iter()
-            .find(|dir| {
-                dir.join("opencode.db").is_file()
-                    || dir.join("storage/session").is_dir()
-                    || dir.join("sessions").is_dir()
-            })
-            .or_else(|| {
-                Self::candidate_data_dirs()
-                    .into_iter()
-                    .find(|dir| dir.exists())
-            })
+    fn has_known_store(dir: &Path) -> bool {
+        dir.join("opencode.db").is_file()
+            || dir.join("storage/session").is_dir()
+            || dir.join("sessions").is_dir()
+    }
+
+    fn existing_data_dirs_from_candidates(candidates: Vec<PathBuf>) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        let mut seen = HashSet::new();
+
+        for dir in candidates {
+            if !seen.insert(dir.clone()) || !Self::has_known_store(&dir) {
+                continue;
+            }
+            dirs.push(dir);
+        }
+
+        dirs
+    }
+
+    fn existing_data_dirs() -> Vec<PathBuf> {
+        Self::existing_data_dirs_from_candidates(Self::candidate_data_dirs())
     }
 
     fn modified_at(path: &Path) -> DateTime<Utc> {
@@ -164,6 +184,33 @@ impl OpenCodeAdapter {
                 }
             }
         }
+    }
+
+    fn scan_data_dirs(data_dirs: Vec<PathBuf>) -> Vec<SessionLocation> {
+        let mut locations = Vec::new();
+        let mut seen_dirs = HashSet::new();
+        let mut seen_paths = HashSet::new();
+
+        for data_dir in data_dirs {
+            if !seen_dirs.insert(data_dir.clone()) {
+                continue;
+            }
+
+            let mut root_locations = Vec::new();
+            if data_dir.join("opencode.db").is_file() {
+                Self::scan_session_diff_markers(&data_dir, &mut root_locations);
+            }
+            Self::scan_storage_sessions(&data_dir.join("storage/session"), &mut root_locations);
+            Self::scan_legacy_jsonl(&data_dir.join("sessions"), &mut root_locations);
+
+            for location in root_locations {
+                if seen_paths.insert(location.path.clone()) {
+                    locations.push(location);
+                }
+            }
+        }
+
+        locations
     }
 
     fn data_dir_from_storage_path(path: &Path) -> Option<PathBuf> {
@@ -521,7 +568,11 @@ impl OpenCodeAdapter {
             }
             serde_json::from_str::<Value>(m)
                 .ok()
-                .and_then(|v| v.get("id").and_then(|id| id.as_str()).map(ToString::to_string))
+                .and_then(|v| {
+                    v.get("id")
+                        .and_then(|id| id.as_str())
+                        .map(ToString::to_string)
+                })
                 .or_else(|| Some(m.to_string()))
         });
 
@@ -747,23 +798,11 @@ impl AgentAdapter for OpenCodeAdapter {
     }
 
     async fn detect(&self) -> bool {
-        Self::data_dir().is_some()
+        !Self::existing_data_dirs().is_empty()
     }
 
     async fn scan(&self) -> Vec<SessionLocation> {
-        let Some(data_dir) = Self::data_dir() else {
-            return Vec::new();
-        };
-
-        let mut locations = Vec::new();
-        if data_dir.join("opencode.db").is_file() {
-            Self::scan_session_diff_markers(&data_dir, &mut locations);
-        } else {
-            Self::scan_storage_sessions(&data_dir.join("storage/session"), &mut locations);
-        }
-        Self::scan_legacy_jsonl(&data_dir.join("sessions"), &mut locations);
-
-        locations
+        Self::scan_data_dirs(Self::existing_data_dirs())
     }
 
     async fn parse_session(&self, path: &Path) -> Result<NormalizedSession, String> {
@@ -794,6 +833,74 @@ impl AgentAdapter for OpenCodeAdapter {
 mod tests {
     use super::*;
     use crate::adapters::AgentAdapter;
+
+    #[test]
+    fn candidate_data_dirs_from_sources_deduplicates_xdg_paths() {
+        let home = std::path::PathBuf::from("/home/orbit-user");
+        let data_local = std::path::PathBuf::from("/home/orbit-user/.local/share");
+        let data = std::path::PathBuf::from("/home/orbit-user/.local/share");
+        let config = std::path::PathBuf::from("/home/orbit-user/.config");
+
+        let dirs = OpenCodeAdapter::candidate_data_dirs_from_sources(
+            Some(home.clone()),
+            Some(data_local),
+            Some(data),
+            Some(config.clone()),
+        );
+
+        assert_eq!(
+            dirs,
+            vec![home.join(".local/share/opencode"), config.join("opencode"),]
+        );
+    }
+
+    #[test]
+    fn existing_data_dirs_from_candidates_filters_known_stores_and_deduplicates() {
+        let temp = tempfile::tempdir().unwrap();
+        let root_a = temp.path().join("data-a/opencode");
+        let root_b = temp.path().join("data-b/opencode");
+        let root_empty = temp.path().join("empty/opencode");
+
+        std::fs::create_dir_all(root_a.join("storage/session/project_123")).unwrap();
+        std::fs::create_dir_all(root_b.join("sessions")).unwrap();
+        std::fs::create_dir_all(&root_empty).unwrap();
+
+        let dirs = OpenCodeAdapter::existing_data_dirs_from_candidates(vec![
+            root_a.clone(),
+            root_empty,
+            root_b.clone(),
+            root_a.clone(),
+        ]);
+
+        assert_eq!(dirs, vec![root_a, root_b]);
+    }
+
+    #[test]
+    fn scan_data_dirs_returns_sessions_from_multiple_roots_without_duplicate_candidates() {
+        let temp = tempfile::tempdir().unwrap();
+        let root_a = temp.path().join("data-a/opencode");
+        let root_b = temp.path().join("data-b/opencode");
+
+        std::fs::create_dir_all(root_a.join("storage/session/project_123")).unwrap();
+        std::fs::create_dir_all(root_a.join("storage/session_diff")).unwrap();
+        std::fs::create_dir_all(root_b.join("sessions/project_456")).unwrap();
+        std::fs::write(root_a.join("opencode.db"), "").unwrap();
+        let storage_path = root_a.join("storage/session/project_123/ses_storage.json");
+        let marker_path = root_a.join("storage/session_diff/ses_db.json");
+        let legacy_path = root_b.join("sessions/project_456/ses_legacy.jsonl");
+        std::fs::write(&storage_path, "{}").unwrap();
+        std::fs::write(&marker_path, "{}").unwrap();
+        std::fs::write(&legacy_path, "{}").unwrap();
+
+        let locations =
+            OpenCodeAdapter::scan_data_dirs(vec![root_a.clone(), root_b.clone(), root_a]);
+        let mut paths: Vec<_> = locations.into_iter().map(|loc| loc.path).collect();
+        paths.sort();
+
+        let mut expected = vec![storage_path, marker_path, legacy_path];
+        expected.sort();
+        assert_eq!(paths, expected);
+    }
 
     #[tokio::test]
     async fn parses_current_opencode_storage_session() {

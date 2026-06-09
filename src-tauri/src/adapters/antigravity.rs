@@ -30,8 +30,13 @@ impl AntigravityAdapter {
 }
 
 fn clean_user_message(content: &str) -> String {
-    if let (Some(start), Some(end)) = (content.find("<USER_REQUEST>"), content.find("</USER_REQUEST>")) {
-        content[start + "<USER_REQUEST>".len()..end].trim().to_string()
+    if let (Some(start), Some(end)) = (
+        content.find("<USER_REQUEST>"),
+        content.find("</USER_REQUEST>"),
+    ) {
+        content[start + "<USER_REQUEST>".len()..end]
+            .trim()
+            .to_string()
     } else {
         content.trim().to_string()
     }
@@ -40,7 +45,7 @@ fn clean_user_message(content: &str) -> String {
 fn clean_json_val(val: &serde_json::Value) -> Option<String> {
     let s = val.as_str()?;
     if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
-        Some(s[1..s.len()-1].to_string())
+        Some(s[1..s.len() - 1].to_string())
     } else {
         Some(s.to_string())
     }
@@ -55,7 +60,10 @@ fn antigravity_file_operation_for(tool_name: &str) -> String {
     }
 }
 
-fn antigravity_extract_file_path(_tool_name: &str, arguments: &serde_json::Value) -> Option<String> {
+fn antigravity_extract_file_path(
+    _tool_name: &str,
+    arguments: &serde_json::Value,
+) -> Option<String> {
     for key in &["AbsolutePath", "TargetFile"] {
         if let Some(val) = arguments.get(*key) {
             if let Some(p) = clean_json_val(val) {
@@ -113,7 +121,10 @@ impl AgentAdapter for AntigravityAdapter {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
-                    let transcript_path = path.join(".system_generated").join("logs").join("transcript.jsonl");
+                    let transcript_path = path
+                        .join(".system_generated")
+                        .join("logs")
+                        .join("transcript.jsonl");
                     if transcript_path.is_file() {
                         let modified = std::fs::metadata(&transcript_path)
                             .ok()
@@ -209,8 +220,16 @@ impl AgentAdapter for AntigravityAdapter {
                     seq += 1;
                 }
                 "PLANNER_RESPONSE" => {
-                    let content_text = json.get("content").and_then(|c| c.as_str()).unwrap_or("").to_string();
-                    let thinking_text = json.get("thinking").and_then(|t| t.as_str()).unwrap_or("").to_string();
+                    let content_text = json
+                        .get("content")
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let thinking_text = json
+                        .get("thinking")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("")
+                        .to_string();
 
                     output_tokens += estimate_tokens(&content_text);
                     if !thinking_text.is_empty() {
@@ -240,9 +259,13 @@ impl AgentAdapter for AntigravityAdapter {
 
                     if let Some(tool_calls) = json.get("tool_calls").and_then(|tc| tc.as_array()) {
                         for tc in tool_calls {
-                            let name = tc.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+                            let name = tc
+                                .get("name")
+                                .and_then(|n| n.as_str())
+                                .unwrap_or("")
+                                .to_string();
                             let args = tc.get("args").unwrap_or(&serde_json::Value::Null);
-                            
+
                             let tool_input = if args.is_null() {
                                 None
                             } else {
@@ -289,7 +312,7 @@ impl AgentAdapter for AntigravityAdapter {
                 _ => {
                     let raw_content = json.get("content").and_then(|c| c.as_str()).unwrap_or("");
                     input_tokens += estimate_tokens(raw_content);
-                    
+
                     let matched = messages.iter_mut().rev().find(|m| {
                         m.role == MessageRole::Tool
                             && m.tool_name.is_some()
@@ -393,7 +416,10 @@ mod tests {
 
         assert_eq!(parsed.messages[2].role, MessageRole::Tool);
         assert_eq!(parsed.messages[2].tool_name.as_deref(), Some("list_dir"));
-        assert_eq!(parsed.messages[2].tool_output.as_deref(), Some("[file1, file2]"));
+        assert_eq!(
+            parsed.messages[2].tool_output.as_deref(),
+            Some("[file1, file2]")
+        );
 
         assert_eq!(parsed.session.input_tokens, 22); // 10 (user input) + 9 (tool arguments) + 3 (tool output)
         assert_eq!(parsed.session.output_tokens, 7); // 4 (content) + 3 (thinking)
