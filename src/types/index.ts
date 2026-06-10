@@ -101,6 +101,18 @@ export const AGENT_COLORS: Record<AgentType, string> = {
   antigravity: "bg-violet-500",
 };
 
+export const AGENT_CHART_COLORS: Record<AgentType, string> = {
+  claude: "#fb923c",
+  codex: "#60a5fa",
+  copilot: "#34d399",
+  cursor: "#22d3ee",
+  jetbrains: "#f472b6",
+  opencode: "#e879f9",
+  warp: "#2dd4bf",
+  qoder: "#818cf8",
+  antigravity: "#a78bfa",
+};
+
 export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
   claude: "text-orange-300",
   codex: "text-blue-400",

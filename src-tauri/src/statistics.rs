@@ -338,9 +338,12 @@ fn bucket_starts(
     match period {
         StatisticsPeriod::SevenDays => daily_starts(now, 7),
         StatisticsPeriod::ThirtyDays => daily_starts(now, 30),
-        StatisticsPeriod::NinetyDays => (0..13)
-            .map(|index| start_of_day(now) - Duration::days(84 - index * 7))
-            .collect(),
+        StatisticsPeriod::NinetyDays => {
+            let cutoff = start_of_day(now) - Duration::days(89);
+            (0..13)
+                .map(|index| cutoff + Duration::days(index * 7))
+                .collect()
+        }
         StatisticsPeriod::All => {
             let earliest = rows.iter().map(|row| row.created_at).min().unwrap_or(now);
             let mut year = earliest.year();
@@ -664,6 +667,27 @@ mod tests {
         assert_eq!(timeline.len(), 7);
         assert!(timeline[..6].iter().all(|bucket| bucket.values.is_empty()));
         assert_eq!(timeline[6].values[0].value, 1);
+    }
+
+    #[test]
+    fn ninety_day_timeline_keeps_sessions_at_the_cutoff() {
+        let now = Utc.with_ymd_and_hms(2026, 6, 10, 12, 0, 0).unwrap();
+        let cutoff = Utc.with_ymd_and_hms(2026, 3, 13, 0, 0, 0).unwrap();
+        let mut session = row("codex", "/work/orbit", None, 10, 1, 1, 1);
+        session.created_at = cutoff;
+
+        let dashboard = aggregate_statistics(
+            StatisticsMode::Agent,
+            StatisticsPeriod::NinetyDays,
+            now,
+            &[session],
+        );
+
+        let StatisticsDashboard::Agent { timeline, .. } = dashboard else {
+            panic!("expected agent dashboard");
+        };
+        assert_eq!(timeline.len(), 13);
+        assert_eq!(timeline[0].values[0].value, 1);
     }
 
     #[test]

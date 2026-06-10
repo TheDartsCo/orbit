@@ -9,6 +9,7 @@ import { Sidebar } from "./components/Sidebar/Sidebar";
 import { TranscriptView } from "./components/Transcript/TranscriptView";
 import { ActionBar } from "./components/ActionBar/ActionBar";
 import { SettingsModal } from "./components/Settings/SettingsModal";
+import { StatisticsDashboard } from "./components/Statistics/StatisticsDashboard";
 import { useAppStore } from "./store/useAppStore";
 
 const SIDEBAR_MIN_WIDTH = 440;
@@ -23,6 +24,7 @@ function App() {
   const loadSyncStatus = useAppStore((s) => s.loadSyncStatus);
   const loadSettings = useAppStore((s) => s.loadSettings);
   const selectedSessionId = useAppStore((s) => s.selectedSessionId);
+  const view = useAppStore((s) => s.view);
 
   useEffect(() => {
     loadSessions();
@@ -80,6 +82,10 @@ function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg-primary text-text-primary">
+      {view === "statistics" ? (
+        <StatisticsDashboard />
+      ) : (
+        <>
       <Sidebar width={sidebarWidth} />
       <SettingsModal />
       <div
@@ -112,6 +118,8 @@ function App() {
           </div>
         )}
       </main>
+        </>
+      )}
     </div>
   );
 }
