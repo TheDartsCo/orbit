@@ -34,10 +34,14 @@ path and another adapter stores an encoded path.
 Normalization:
 
 1. Convert Windows separators to `/`.
-2. Extract the final path component when separators are present.
-3. For encoded paths, extract the final non-empty segment.
-4. Compare names case-insensitively.
-5. Treat `.`, `/`, `\`, spaces, `_`, and `-` as equivalent separators.
+2. Extract readable final path components from normal Unix and Windows paths.
+3. Tokenize names case-insensitively, treating `.`, `/`, `\`, spaces, `_`, and
+   `-` as equivalent separators.
+4. For an encoded full path, suffix-match its token sequence against known
+   readable project names. Prefer the longest match so `api-server` remains one
+   project instead of collapsing to `server`.
+5. Fall back to the final non-empty encoded segment when no known basename
+   matches.
 6. Collapse repeated separators.
 7. Use a readable project name from the most recently active matching session.
 8. Use `Unknown project` when no usable name remains.
@@ -181,4 +185,3 @@ Integration verification:
 - `npm run build`.
 - `git diff --check`.
 - Visual inspection in the Tauri app at narrow and wide window sizes.
-
