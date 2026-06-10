@@ -467,6 +467,26 @@ pub async fn get_active_sessions(state: State<'_, AppState>) -> Result<Vec<Strin
 }
 
 #[tauri::command]
+pub async fn get_statistics(
+    mode: StatisticsMode,
+    period: StatisticsPeriod,
+    state: State<'_, AppState>,
+) -> Result<StatisticsDashboard, String> {
+    let now = chrono::Utc::now();
+    let cutoff = crate::statistics::statistics_cutoff(period, now);
+    let rows = {
+        let db = state.db.lock().await;
+        DbQueries::new(&db)
+            .get_statistics_sessions(cutoff)
+            .map_err(|error| error.to_string())?
+    };
+
+    Ok(crate::statistics::aggregate_statistics(
+        mode, period, now, &rows,
+    ))
+}
+
+#[tauri::command]
 pub async fn reindex_all(state: State<'_, AppState>) -> Result<IndexStats, String> {
     tracing::info!("Starting reindex_all");
     let result = state.indexer.index_all().await;

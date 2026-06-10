@@ -143,6 +143,87 @@ export interface TerminalInfo {
   available: boolean;
 }
 
+export type StatisticsMode = "agent" | "project";
+export type StatisticsPeriod = "7d" | "30d" | "90d" | "all";
+
+export interface StatisticsSummary {
+  sessions: number;
+  messages: number;
+  total_tokens: number;
+  active_agents: number;
+  project_count: number;
+  average_messages_per_session: number;
+  average_tokens_per_session: number;
+}
+
+export interface StatisticsSeriesValue {
+  key: string;
+  label: string;
+  value: number;
+}
+
+export interface StatisticsTimeBucket {
+  start: string;
+  values: StatisticsSeriesValue[];
+}
+
+export interface AgentStatisticsRow {
+  agent: string;
+  sessions: number;
+  messages: number;
+  tokens: number;
+  average_messages: number;
+  last_used: string;
+}
+
+export interface ModelStatisticsRow {
+  model: string;
+  tokens: number;
+  percentage: number;
+}
+
+export interface ProjectAgentShare {
+  agent: string;
+  sessions: number;
+  tokens: number;
+  percentage: number;
+}
+
+export interface ProjectStatisticsRow {
+  project: string;
+  sessions: number;
+  messages: number;
+  tokens: number;
+  agent_count: number;
+  top_agent: string;
+  last_active: string;
+  agent_mix: ProjectAgentShare[];
+}
+
+export interface ProjectStatisticsCard {
+  project: string;
+  sessions: number;
+  tokens: number;
+  last_active: string;
+  agent_mix: ProjectAgentShare[];
+}
+
+export type StatisticsDashboard =
+  | {
+      mode: "agent";
+      summary: StatisticsSummary;
+      timeline: StatisticsTimeBucket[];
+      agents: AgentStatisticsRow[];
+      models: ModelStatisticsRow[];
+    }
+  | {
+      mode: "project";
+      summary: StatisticsSummary;
+      timeline: StatisticsTimeBucket[];
+      projects: ProjectStatisticsRow[];
+      cards: ProjectStatisticsCard[];
+    };
+
 export const TERMINAL_LABELS: Record<string, string> = {
   terminal: "Terminal",
   iterm: "iTerm2",
