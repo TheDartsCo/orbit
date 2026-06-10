@@ -383,7 +383,7 @@ fn normalized_project_names(rows: &[StatisticsSessionRow]) -> Vec<String> {
 fn project_identities(rows: &[StatisticsSessionRow]) -> Vec<ProjectIdentity> {
     let mut readable: Vec<(String, Vec<String>)> = rows
         .iter()
-        .filter_map(|row| readable_project_name(&row.project_path))
+        .filter_map(|row| project_path_basename(&row.project_path))
         .map(|display| {
             let tokens = project_tokens(&display);
             (display, tokens)
@@ -403,7 +403,7 @@ fn project_identities(rows: &[StatisticsSessionRow]) -> Vec<ProjectIdentity> {
                 };
             }
 
-            if let Some(display) = readable_project_name(path) {
+            if let Some(display) = project_path_basename(path) {
                 return identity(display);
             }
 
@@ -431,7 +431,7 @@ fn project_identities(rows: &[StatisticsSessionRow]) -> Vec<ProjectIdentity> {
         .collect()
 }
 
-fn readable_project_name(path: &str) -> Option<String> {
+fn project_path_basename(path: &str) -> Option<String> {
     let path = path.trim();
     if path.is_empty() || path == "-" {
         return None;
@@ -442,9 +442,6 @@ fn readable_project_name(path: &str) -> Option<String> {
             .filter(|part| !part.is_empty())
             .next_back()
             .map(str::to_string);
-    }
-    if !path.starts_with('-') {
-        return Some(path.to_string());
     }
     None
 }
@@ -610,11 +607,12 @@ mod tests {
         let rows = vec![
             row("codex", "/Users/maf/work/api-server", None, 1, 1, 1, 1),
             row("cursor", "-Users-maf-work-api-server", None, 2, 1, 1, 1),
+            row("cursor", "Users-maf-work-api-server", None, 3, 1, 1, 1),
         ];
 
         let projects = normalized_project_names(&rows);
 
-        assert_eq!(projects, vec!["api-server", "api-server"]);
+        assert_eq!(projects, vec!["api-server", "api-server", "api-server"]);
     }
 
     #[test]
