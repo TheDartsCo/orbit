@@ -91,9 +91,9 @@ export function StatisticsDashboard() {
             </div>
           </div>
         ) : statistics?.mode === "agent" ? (
-          <AgentStatistics dashboard={statistics} />
+          <AgentStatistics dashboard={statistics} period={period} />
         ) : statistics?.mode === "project" ? (
-          <ProjectStatistics dashboard={statistics} />
+          <ProjectStatistics dashboard={statistics} period={period} />
         ) : null}
       </div>
     </main>

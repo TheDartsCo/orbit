@@ -1,4 +1,8 @@
-import type { StatisticsDashboard, AgentType } from "../../types";
+import type {
+  AgentType,
+  StatisticsDashboard,
+  StatisticsPeriod,
+} from "../../types";
 import { AGENT_LABELS } from "../../types";
 import { agentColor, seriesColor } from "./statisticsColors";
 import { formatCompactNumber, formatRelativeTime } from "./statisticsFormat";
@@ -9,7 +13,13 @@ import { ChartPanel, DataTable, StatCard } from "./StatisticsParts";
 
 type AgentDashboard = Extract<StatisticsDashboard, { mode: "agent" }>;
 
-export function AgentStatistics({ dashboard }: { dashboard: AgentDashboard }) {
+export function AgentStatistics({
+  dashboard,
+  period,
+}: {
+  dashboard: AgentDashboard;
+  period: StatisticsPeriod;
+}) {
   const { summary, timeline, agents, models } = dashboard;
 
   return (
@@ -41,6 +51,7 @@ export function AgentStatistics({ dashboard }: { dashboard: AgentDashboard }) {
         <StackedBarChart
           title="Sessions over time by agent"
           buckets={timeline}
+          period={period}
           colorForKey={(key) => agentColor(key)}
         />
       </ChartPanel>

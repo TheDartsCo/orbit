@@ -1,4 +1,7 @@
-import type { StatisticsTimeBucket } from "../../../types";
+import type {
+  StatisticsPeriod,
+  StatisticsTimeBucket,
+} from "../../../types";
 import {
   formatBucketDate,
   formatCompactNumber,
@@ -9,12 +12,14 @@ import { ChartLegend } from "./ChartLegend";
 interface StackedBarChartProps {
   title: string;
   buckets: StatisticsTimeBucket[];
+  period: StatisticsPeriod;
   colorForKey: (key: string, index: number) => string;
 }
 
 export function StackedBarChart({
   title,
   buckets,
+  period,
   colorForKey,
 }: StackedBarChartProps) {
   const series = collectSeries(buckets);
@@ -100,7 +105,7 @@ export function StackedBarChart({
                   fill="var(--color-text-muted)"
                   fontSize="12"
                 >
-                  {formatBucketDate(bucket.start, buckets.length)}
+                  {formatBucketDate(bucket.start, period)}
                 </text>
               )}
             </g>

@@ -1,3 +1,5 @@
+import type { StatisticsPeriod } from "../../types";
+
 export function formatCompactNumber(value: number): string {
   const absolute = Math.abs(value);
   if (absolute >= 1_000_000_000) return formatUnit(value, 1_000_000_000, "B");
@@ -26,11 +28,16 @@ export function formatRelativeTime(value: string): string {
   });
 }
 
-export function formatBucketDate(value: string, bucketCount: number): string {
+export function formatBucketDate(
+  value: string,
+  period: StatisticsPeriod
+): string {
   const date = new Date(value);
   return date.toLocaleDateString(undefined, {
     month: "short",
-    day: bucketCount > 12 ? "numeric" : undefined,
+    day: period === "all" ? undefined : "numeric",
+    year: period === "all" ? "numeric" : undefined,
+    timeZone: "UTC",
   });
 }
 

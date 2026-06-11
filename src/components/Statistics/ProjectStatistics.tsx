@@ -1,4 +1,8 @@
-import type { StatisticsDashboard, AgentType } from "../../types";
+import type {
+  AgentType,
+  StatisticsDashboard,
+  StatisticsPeriod,
+} from "../../types";
 import { AGENT_LABELS } from "../../types";
 import { agentColor, seriesColor } from "./statisticsColors";
 import {
@@ -13,7 +17,13 @@ import { ChartPanel, DataTable, StatCard } from "./StatisticsParts";
 
 type ProjectDashboard = Extract<StatisticsDashboard, { mode: "project" }>;
 
-export function ProjectStatistics({ dashboard }: { dashboard: ProjectDashboard }) {
+export function ProjectStatistics({
+  dashboard,
+  period,
+}: {
+  dashboard: ProjectDashboard;
+  period: StatisticsPeriod;
+}) {
   const { summary, timeline, projects, cards } = dashboard;
   const projectColors = new Map(
     projects.map((project, index) => [project.project, seriesColor(project.project, index)])
@@ -64,6 +74,7 @@ export function ProjectStatistics({ dashboard }: { dashboard: ProjectDashboard }
         <StackedBarChart
           title="Tokens by project over time"
           buckets={timeline}
+          period={period}
           colorForKey={(key, index) => projectColors.get(key) ?? seriesColor(key, index)}
         />
       </ChartPanel>
