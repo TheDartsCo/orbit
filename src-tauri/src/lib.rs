@@ -4,6 +4,7 @@ pub mod db;
 pub mod indexer;
 pub mod models;
 pub mod shell_quote;
+pub mod statistics;
 pub mod watcher;
 
 use std::sync::Arc;
@@ -44,6 +45,7 @@ pub fn run() {
             commands::get_resume_command,
             commands::launch_resume,
             commands::get_active_sessions,
+            commands::get_statistics,
             commands::reindex_all,
             commands::get_sync_status,
             commands::detect_terminals,
