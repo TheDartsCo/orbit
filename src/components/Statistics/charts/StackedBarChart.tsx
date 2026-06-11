@@ -92,6 +92,7 @@ export function StackedBarChart({
                     height={Math.max(0, segmentHeight)}
                     fill={colorForKey(item.key, seriesIndex)}
                     tabIndex={0}
+                    className="focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
                   >
                     <title>{`${item.label}: ${formatCompactNumber(item.value)}`}</title>
                   </rect>
