@@ -191,6 +191,7 @@ pub struct TerminalInfo {
 #[serde(rename_all = "lowercase")]
 pub enum StatisticsMode {
     Agent,
+    Model,
     Project,
 }
 
@@ -243,8 +244,14 @@ pub struct AgentStatisticsRow {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelStatisticsRow {
     pub model: String,
+    pub sessions: u64,
+    pub messages: u64,
     pub tokens: u64,
     pub percentage: f64,
+    pub agent_count: u64,
+    pub top_agent: String,
+    pub last_used: DateTime<Utc>,
+    pub agent_mix: Vec<ProjectAgentShare>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -283,6 +290,11 @@ pub enum StatisticsDashboard {
         summary: StatisticsSummary,
         timeline: Vec<StatisticsTimeBucket>,
         agents: Vec<AgentStatisticsRow>,
+        models: Vec<ModelStatisticsRow>,
+    },
+    Model {
+        summary: StatisticsSummary,
+        timeline: Vec<StatisticsTimeBucket>,
         models: Vec<ModelStatisticsRow>,
     },
     Project {

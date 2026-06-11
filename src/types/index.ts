@@ -155,7 +155,7 @@ export interface TerminalInfo {
   available: boolean;
 }
 
-export type StatisticsMode = "agent" | "project";
+export type StatisticsMode = "agent" | "model" | "project";
 export type StatisticsPeriod = "7d" | "30d" | "90d" | "all";
 
 export interface StatisticsSummary {
@@ -190,8 +190,14 @@ export interface AgentStatisticsRow {
 
 export interface ModelStatisticsRow {
   model: string;
+  sessions: number;
+  messages: number;
   tokens: number;
   percentage: number;
+  agent_count: number;
+  top_agent: string;
+  last_used: string;
+  agent_mix: ProjectAgentShare[];
 }
 
 export interface ProjectAgentShare {
@@ -226,6 +232,12 @@ export type StatisticsDashboard =
       summary: StatisticsSummary;
       timeline: StatisticsTimeBucket[];
       agents: AgentStatisticsRow[];
+      models: ModelStatisticsRow[];
+    }
+  | {
+      mode: "model";
+      summary: StatisticsSummary;
+      timeline: StatisticsTimeBucket[];
       models: ModelStatisticsRow[];
     }
   | {

@@ -2,6 +2,7 @@ import { ArrowLeft, BarChart3, FolderKanban, RefreshCw } from "lucide-react";
 import { useAppStore } from "../../store/useAppStore";
 import type { StatisticsMode, StatisticsPeriod } from "../../types";
 import { AgentStatistics } from "./AgentStatistics";
+import { ModelStatistics } from "./ModelStatistics";
 import { ProjectStatistics } from "./ProjectStatistics";
 
 const PERIODS: Array<{ value: StatisticsPeriod; label: string }> = [
@@ -92,6 +93,8 @@ export function StatisticsDashboard() {
           </div>
         ) : statistics?.mode === "agent" ? (
           <AgentStatistics dashboard={statistics} period={period} />
+        ) : statistics?.mode === "model" ? (
+          <ModelStatistics dashboard={statistics} period={period} />
         ) : statistics?.mode === "project" ? (
           <ProjectStatistics dashboard={statistics} period={period} />
         ) : null}
@@ -109,7 +112,7 @@ function ModeSwitch({
 }) {
   return (
     <div className="flex rounded-lg border border-border bg-bg-primary p-1" role="tablist">
-      {(["agent", "project"] as const).map((value) => (
+      {(["agent", "model", "project"] as const).map((value) => (
         <button
           key={value}
           type="button"
@@ -122,7 +125,11 @@ function ModeSwitch({
               : "text-text-muted hover:bg-bg-hover hover:text-text-secondary"
           }`}
         >
-          {value === "agent" ? "Agent stats" : "Project stats"}
+          {value === "agent"
+            ? "Agent stats"
+            : value === "model"
+              ? "Model stats"
+              : "Project stats"}
         </button>
       ))}
     </div>

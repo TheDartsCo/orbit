@@ -8,6 +8,7 @@ use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 const UNKNOWN_PROJECT: &str = "Unknown project";
+const UNKNOWN_MODEL: &str = "Unknown model";
 const OTHER: &str = "Other";
 const MAX_CHART_CATEGORIES: usize = 8;
 
@@ -51,6 +52,7 @@ pub fn aggregate_statistics(
 
     match mode {
         StatisticsMode::Agent => build_agent_dashboard(summary, period, now, &rows),
+        StatisticsMode::Model => build_model_dashboard(summary, period, now, &rows),
         StatisticsMode::Project => build_project_dashboard(summary, period, now, &rows, &projects),
     }
 }
@@ -119,8 +121,14 @@ fn build_agent_dashboard(
         .into_iter()
         .map(|(model, tokens)| ModelStatisticsRow {
             model,
+            sessions: 0,
+            messages: 0,
             tokens,
             percentage: percentage(tokens, total_model_tokens),
+            agent_count: 0,
+            top_agent: String::new(),
+            last_used: epoch(),
+            agent_mix: Vec::new(),
         })
         .collect();
     models.sort_by(|a, b| b.tokens.cmp(&a.tokens).then_with(|| a.model.cmp(&b.model)));
@@ -144,6 +152,72 @@ fn build_agent_dashboard(
         summary,
         timeline,
         agents,
+        models,
+    }
+}
+
+fn build_model_dashboard(
+    summary: StatisticsSummary,
+    period: StatisticsPeriod,
+    now: DateTime<Utc>,
+    rows: &[StatisticsSessionRow],
+) -> StatisticsDashboard {
+    let model_keys: Vec<_> = rows.iter().map(model_name).collect();
+    let mut totals: HashMap<String, Aggregate> = HashMap::new();
+    let mut agent_totals: HashMap<String, HashMap<String, Aggregate>> = HashMap::new();
+    for (row, model) in rows.iter().zip(&model_keys) {
+        add_row(totals.entry(model.clone()).or_default(), row);
+        add_row(
+            agent_totals
+                .entry(model.clone())
+                .or_default()
+                .entry(row.agent.clone())
+                .or_default(),
+            row,
+        );
+    }
+
+    let total_tokens: u64 = totals.values().map(|total| total.tokens).sum();
+    let mut models: Vec<_> = totals
+        .into_iter()
+        .map(|(model, total)| {
+            let agent_mix = project_agent_mix(agent_totals.remove(&model).unwrap_or_default());
+            let top_agent = agent_mix
+                .first()
+                .map(|share| share.agent.clone())
+                .unwrap_or_else(|| OTHER.to_string());
+            ModelStatisticsRow {
+                model,
+                sessions: total.sessions,
+                messages: total.messages,
+                tokens: total.tokens,
+                percentage: percentage(total.tokens, total_tokens),
+                agent_count: agent_mix.len() as u64,
+                top_agent,
+                last_used: total.last_active.unwrap_or_else(epoch),
+                agent_mix,
+            }
+        })
+        .collect();
+    models.sort_by(|a, b| b.tokens.cmp(&a.tokens).then_with(|| a.model.cmp(&b.model)));
+
+    let chart_totals = models
+        .iter()
+        .map(|model| (model.model.clone(), model.sessions))
+        .collect();
+    let timeline = build_timeline(
+        period,
+        now,
+        rows,
+        &model_keys,
+        chart_totals,
+        |_| 1,
+        |model| model.to_string(),
+    );
+
+    StatisticsDashboard::Model {
+        summary,
+        timeline,
         models,
     }
 }
@@ -485,6 +559,15 @@ fn session_tokens(row: &StatisticsSessionRow) -> u64 {
     row.input_tokens.saturating_add(row.output_tokens)
 }
 
+fn model_name(row: &StatisticsSessionRow) -> String {
+    row.model
+        .as_deref()
+        .map(str::trim)
+        .filter(|model| !model.is_empty())
+        .unwrap_or(UNKNOWN_MODEL)
+        .to_string()
+}
+
 fn chart_categories(totals: HashMap<String, u64>, limit: usize) -> HashSet<String> {
     let mut totals: Vec<_> = totals.into_iter().collect();
     totals.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
@@ -710,5 +793,69 @@ mod tests {
         assert_eq!(projects[0].sessions, 2);
         assert_eq!(projects[0].tokens, 160);
         assert_eq!(projects[0].agent_count, 2);
+    }
+
+    #[test]
+    fn model_dashboard_keeps_exact_names_and_groups_missing_models() {
+        let rows = vec![
+            row("codex", "/work/orbit", Some("gpt-5-codex"), 8, 10, 100, 20),
+            row(
+                "codex",
+                "/work/orbit",
+                Some("gpt-5-codex-high"),
+                9,
+                8,
+                80,
+                10,
+            ),
+            row("cursor", "/work/orbit", None, 10, 5, 30, 10),
+        ];
+
+        let dashboard = aggregate_statistics(
+            StatisticsMode::Model,
+            StatisticsPeriod::SevenDays,
+            timestamp(10),
+            &rows,
+        );
+
+        let StatisticsDashboard::Model { models, .. } = dashboard else {
+            panic!("expected model dashboard");
+        };
+        assert_eq!(models.len(), 3);
+        assert!(models.iter().any(|model| model.model == "gpt-5-codex"));
+        assert!(models.iter().any(|model| model.model == "gpt-5-codex-high"));
+        assert!(models.iter().any(|model| model.model == "Unknown model"));
+    }
+
+    #[test]
+    fn model_dashboard_aggregates_agents_and_timeline() {
+        let rows = vec![
+            row("codex", "/work/orbit", Some("gpt-5-codex"), 9, 10, 100, 20),
+            row("cursor", "/work/orbit", Some("gpt-5-codex"), 10, 5, 30, 10),
+        ];
+
+        let dashboard = aggregate_statistics(
+            StatisticsMode::Model,
+            StatisticsPeriod::SevenDays,
+            timestamp(10),
+            &rows,
+        );
+
+        let StatisticsDashboard::Model {
+            summary,
+            timeline,
+            models,
+        } = dashboard
+        else {
+            panic!("expected model dashboard");
+        };
+        assert_eq!(summary.sessions, 2);
+        assert_eq!(models[0].sessions, 2);
+        assert_eq!(models[0].messages, 15);
+        assert_eq!(models[0].tokens, 160);
+        assert_eq!(models[0].agent_count, 2);
+        assert_eq!(models[0].top_agent, "codex");
+        assert_eq!(timeline[5].values[0].value, 1);
+        assert_eq!(timeline[6].values[0].value, 1);
     }
 }
