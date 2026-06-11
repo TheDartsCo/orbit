@@ -52,6 +52,7 @@ export function DonutChart({ title, rows, colorForRow }: DonutChartProps) {
               strokeDashoffset={-offset}
               transform="rotate(-90 120 120)"
               tabIndex={0}
+              className="focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
             >
               <title>{`${row.label}: ${formatCompactNumber(row.value)} (${formatPercentage(row.percentage)})`}</title>
             </circle>
