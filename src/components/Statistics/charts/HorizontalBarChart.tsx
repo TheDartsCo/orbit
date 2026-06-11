@@ -53,6 +53,7 @@ export function HorizontalBarChart({
               rx={4}
               fill={colorForRow(row.key, index)}
               tabIndex={0}
+              className="focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
             >
               <title>{`${row.label}: ${formatCompactNumber(row.value)}`}</title>
             </rect>
