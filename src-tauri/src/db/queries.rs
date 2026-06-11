@@ -342,27 +342,38 @@ impl<'a> DbQueries<'a> {
 
         let mut stmt = self.conn.prepare(&sql)?;
         let map_row = |row: &rusqlite::Row<'_>| {
-            let created_at = row
-                .get::<_, String>(3)
-                .ok()
-                .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
-                .map(|value| value.with_timezone(&Utc))
-                .unwrap_or_default();
-            let updated_at = row
-                .get::<_, String>(4)
-                .ok()
-                .and_then(|value| DateTime::parse_from_rfc3339(&value).ok())
-                .map(|value| value.with_timezone(&Utc))
-                .unwrap_or_default();
+            let created_at_str: String = row.get(3)?;
+            let updated_at_str: String = row.get(4)?;
+
+            let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+                .map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        3,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?
+                .with_timezone(&Utc);
+
+            let updated_at = DateTime::parse_from_rfc3339(&updated_at_str)
+                .map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        4,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?
+                .with_timezone(&Utc);
+
             Ok(StatisticsSessionRow {
                 agent: row.get(0)?,
                 project_path: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
                 model: row.get(2)?,
                 created_at,
                 updated_at,
-                message_count: row.get::<_, i64>(5)? as u64,
-                input_tokens: row.get::<_, i64>(6)? as u64,
-                output_tokens: row.get::<_, i64>(7)? as u64,
+                message_count: row.get::<_, i64>(5)?.max(0) as u64,
+                input_tokens: row.get::<_, i64>(6)?.max(0) as u64,
+                output_tokens: row.get::<_, i64>(7)?.max(0) as u64,
             })
         };
 
