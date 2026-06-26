@@ -4,6 +4,7 @@ pub mod codex;
 pub mod copilot;
 pub mod cursor;
 pub mod jetbrains;
+pub mod kilo;
 pub mod opencode;
 pub mod qoder;
 pub mod warp;
@@ -233,6 +234,7 @@ impl AdapterRegistry {
         reg.register(Box::new(copilot::CopilotAdapter::new()));
         reg.register(Box::new(cursor::CursorAdapter::new()));
         reg.register(Box::new(jetbrains::JetBrainsAdapter::new()));
+        reg.register(Box::new(kilo::KiloAdapter::new()));
         reg.register(Box::new(opencode::OpenCodeAdapter::new()));
         reg.register(Box::new(qoder::QoderAdapter::new()));
         reg.register(Box::new(warp::WarpAdapter::new()));

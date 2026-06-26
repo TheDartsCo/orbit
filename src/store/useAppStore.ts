@@ -79,7 +79,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const sessions = await invoke<Session[]>("get_sessions", {
         filters,
         offset: 0,
-        limit: 200,
+        limit: 10000,
       });
       set({ sessions, loading: false, initialLoading: false });
     } catch (e) {

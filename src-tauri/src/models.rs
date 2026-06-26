@@ -8,10 +8,11 @@ pub enum AgentType {
     Codex,
     Copilot,
     Cursor,
-    OpenCode,
     JetBrains,
-    Warp,
+    Kilo,
+    OpenCode,
     Qoder,
+    Warp,
     Antigravity,
 }
 
@@ -22,10 +23,11 @@ impl AgentType {
             AgentType::Codex => "codex",
             AgentType::Copilot => "copilot",
             AgentType::Cursor => "cursor",
-            AgentType::OpenCode => "opencode",
             AgentType::JetBrains => "jetbrains",
-            AgentType::Warp => "warp",
+            AgentType::Kilo => "kilo",
+            AgentType::OpenCode => "opencode",
             AgentType::Qoder => "qoder",
+            AgentType::Warp => "warp",
             AgentType::Antigravity => "antigravity",
         }
     }
@@ -36,10 +38,11 @@ impl AgentType {
             "codex" => Some(AgentType::Codex),
             "copilot" => Some(AgentType::Copilot),
             "cursor" => Some(AgentType::Cursor),
-            "opencode" => Some(AgentType::OpenCode),
             "jetbrains" => Some(AgentType::JetBrains),
-            "warp" => Some(AgentType::Warp),
+            "kilo" => Some(AgentType::Kilo),
+            "opencode" => Some(AgentType::OpenCode),
             "qoder" => Some(AgentType::Qoder),
+            "warp" => Some(AgentType::Warp),
             "antigravity" => Some(AgentType::Antigravity),
             _ => None,
         }

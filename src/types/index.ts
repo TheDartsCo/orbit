@@ -4,12 +4,13 @@ export type AgentType =
   | "copilot"
   | "cursor"
   | "jetbrains"
+  | "kilo"
   | "opencode"
   | "warp"
   | "qoder"
   | "antigravity";
 
-export const ALL_AGENTS: AgentType[] = ["antigravity", "claude", "codex", "copilot", "cursor", "jetbrains", "opencode", "qoder", "warp"];
+export const ALL_AGENTS: AgentType[] = ["antigravity", "claude", "codex", "copilot", "cursor", "jetbrains", "kilo", "opencode", "qoder", "warp"];
 
 export type MessageRole = "user" | "assistant" | "system" | "tool";
 export type AttachmentType = "image" | "file" | "diff";
@@ -95,6 +96,7 @@ export const AGENT_COLORS: Record<AgentType, string> = {
   copilot: "bg-emerald-500",
   cursor: "bg-blue-500",
   jetbrains: "bg-pink-500",
+  kilo: "bg-sky-500",
   opencode: "bg-orange-500",
   warp: "bg-teal-500",
   qoder: "bg-indigo-500",
@@ -107,6 +109,7 @@ export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
   copilot: "text-emerald-300",
   cursor: "text-cyan-300",
   jetbrains: "text-pink-300",
+  kilo: "text-sky-300",
   opencode: "text-fuchsia-300",
   warp: "text-teal-300",
   qoder: "text-indigo-300",
@@ -119,6 +122,7 @@ export const AGENT_TINTS: Record<AgentType, string> = {
   copilot: "bg-emerald-400/10 border-emerald-400/20",
   cursor: "bg-cyan-400/10 border-cyan-400/20",
   jetbrains: "bg-pink-400/10 border-pink-400/20",
+  kilo: "bg-sky-400/10 border-sky-400/20",
   opencode: "bg-fuchsia-400/10 border-fuchsia-400/20",
   warp: "bg-teal-400/10 border-teal-400/20",
   qoder: "bg-indigo-400/10 border-indigo-400/20",
@@ -131,6 +135,7 @@ export const AGENT_LABELS: Record<AgentType, string> = {
   copilot: "Copilot",
   cursor: "Cursor",
   jetbrains: "JetBrains AI",
+  kilo: "Kilo Code",
   opencode: "OpenCode",
   warp: "Warp",
   qoder: "Qoder",
