@@ -1,4 +1,5 @@
 use crate::models::*;
+use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +9,18 @@ pub struct SessionFileRow {
     pub operation: String,
     pub touch_count: u32,
     pub first_touched_sequence: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct StatisticsSessionRow {
+    pub agent: String,
+    pub project_path: String,
+    pub model: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub message_count: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
 }
 
 pub struct DbQueries<'a> {
@@ -314,6 +327,69 @@ impl<'a> DbQueries<'a> {
         Ok(sessions)
     }
 
+    pub fn get_statistics_sessions(
+        &self,
+        created_at_or_after: Option<DateTime<Utc>>,
+    ) -> Result<Vec<StatisticsSessionRow>> {
+        let mut sql = String::from(
+            "SELECT agent, project_path, model, created_at, updated_at, message_count, input_tokens, output_tokens
+             FROM sessions",
+        );
+        if created_at_or_after.is_some() {
+            sql.push_str(" WHERE created_at >= ?1");
+        }
+        sql.push_str(" ORDER BY created_at ASC, agent ASC");
+
+        let mut stmt = self.conn.prepare(&sql)?;
+        let map_row = |row: &rusqlite::Row<'_>| {
+            let created_at_str: String = row.get(3)?;
+            let updated_at_str: String = row.get(4)?;
+
+            let created_at = DateTime::parse_from_rfc3339(&created_at_str)
+                .map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        3,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?
+                .with_timezone(&Utc);
+
+            let updated_at = DateTime::parse_from_rfc3339(&updated_at_str)
+                .map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        4,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?
+                .with_timezone(&Utc);
+
+            Ok(StatisticsSessionRow {
+                agent: row.get(0)?,
+                project_path: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                model: row.get(2)?,
+                created_at,
+                updated_at,
+                message_count: row.get::<_, i64>(5)?.max(0) as u64,
+                input_tokens: row.get::<_, i64>(6)?.max(0) as u64,
+                output_tokens: row.get::<_, i64>(7)?.max(0) as u64,
+            })
+        };
+
+        let rows = if let Some(cutoff) = created_at_or_after {
+            stmt.query_map(params![cutoff.to_rfc3339()], map_row)?
+                .filter_map(|row| row.ok())
+                .collect()
+        } else {
+            stmt.query_map([], map_row)?
+                .filter_map(|row| row.ok())
+                .collect()
+        };
+
+        Ok(rows)
+    }
+
     pub fn get_messages(&self, session_id: &str, offset: u32, limit: u32) -> Result<Vec<Message>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, session_id, role, content, timestamp, sequence, tool_name, tool_input, tool_output
@@ -526,6 +602,26 @@ mod tests {
         let rows = q.get_sessions(&filters, 0, 10).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].id, "a");
+    }
+
+    #[test]
+    fn statistics_sessions_filter_by_created_at() {
+        let conn = fresh();
+        let q = DbQueries::new(&conn);
+        let cutoff = Utc::now();
+
+        let mut old = make_session("old");
+        old.created_at = cutoff - chrono::Duration::seconds(1);
+        let mut current = make_session("current");
+        current.created_at = cutoff;
+        q.upsert_session(&old).unwrap();
+        q.upsert_session(&current).unwrap();
+
+        let rows = q.get_statistics_sessions(Some(cutoff)).unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].agent, "claude");
+        assert_eq!(rows[0].created_at, cutoff);
     }
 
     #[test]

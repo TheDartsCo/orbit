@@ -1,10 +1,11 @@
 import { create } from "zustand";
 import { invoke } from "@tauri-apps/api/core";
-import { ALL_AGENTS, type Session, type Message, type SessionFilters, type IndexStats, type SyncStatus, type MessageRole, type AgentType, type TerminalInfo } from "../types";
+import { ALL_AGENTS, type Session, type Message, type SessionFilters, type IndexStats, type SyncStatus, type MessageRole, type AgentType, type TerminalInfo, type StatisticsDashboard, type StatisticsMode, type StatisticsPeriod } from "../types";
 import { createDefaultEnabledRoles } from "./messageRoles";
 
 export type SortColumn = "agent" | "session" | "date" | "project" | "model" | "branch" | "tokens" | "files" | "messages";
 export type SortDirection = "asc" | "desc";
+export type AppView = "sessions" | "statistics";
 
 export interface SortConfig {
   column: SortColumn;
@@ -29,6 +30,12 @@ interface AppState {
   availableTerminals: TerminalInfo[];
   preferredTerminal: string | null;
   settingsOpen: boolean;
+  view: AppView;
+  statisticsMode: StatisticsMode;
+  statisticsPeriod: StatisticsPeriod;
+  statistics: StatisticsDashboard | null;
+  statisticsLoading: boolean;
+  statisticsError: string | null;
 
   loadSessions: () => Promise<void>;
   selectSession: (id: string) => Promise<void>;
@@ -47,6 +54,11 @@ interface AppState {
   setPreferredTerminal: (id: string) => Promise<void>;
   openSettings: () => void;
   closeSettings: () => void;
+  openStatistics: () => void;
+  closeStatistics: () => void;
+  setStatisticsMode: (mode: StatisticsMode) => void;
+  setStatisticsPeriod: (period: StatisticsPeriod) => void;
+  loadStatistics: () => Promise<void>;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -67,6 +79,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   availableTerminals: [],
   preferredTerminal: null,
   settingsOpen: false,
+  view: "sessions",
+  statisticsMode: "agent",
+  statisticsPeriod: "30d",
+  statistics: null,
+  statisticsLoading: false,
+  statisticsError: null,
 
   loadSessions: async () => {
     set({ loading: true });
@@ -165,6 +183,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.log("Reindex complete:", stats);
       set({ indexStats: stats, lastSyncAt: stats.last_sync_at });
       await get().loadSessions();
+      if (get().view === "statistics") {
+        await get().loadStatistics();
+      }
     } catch (e) {
       console.error("Failed to reindex:", e);
       set({ indexError: String(e), loading: false });
@@ -259,4 +280,49 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   openSettings: () => set({ settingsOpen: true }),
   closeSettings: () => set({ settingsOpen: false }),
+
+  openStatistics: () => {
+    set({ view: "statistics" });
+    void get().loadStatistics();
+  },
+
+  closeStatistics: () => set({ view: "sessions" }),
+
+  setStatisticsMode: (mode) => {
+    set({ statisticsMode: mode, statistics: null });
+    void get().loadStatistics();
+  },
+
+  setStatisticsPeriod: (period) => {
+    set({ statisticsPeriod: period, statistics: null });
+    void get().loadStatistics();
+  },
+
+  loadStatistics: async () => {
+    const mode = get().statisticsMode;
+    const period = get().statisticsPeriod;
+    set({ statisticsLoading: true, statisticsError: null });
+    try {
+      const statistics = await invoke<StatisticsDashboard>("get_statistics", {
+        mode,
+        period,
+      });
+      if (
+        get().statisticsMode === mode &&
+        get().statisticsPeriod === period
+      ) {
+        set({ statistics, statisticsLoading: false });
+      }
+    } catch (error) {
+      if (
+        get().statisticsMode === mode &&
+        get().statisticsPeriod === period
+      ) {
+        set({
+          statisticsError: String(error),
+          statisticsLoading: false,
+        });
+      }
+    }
+  },
 }));

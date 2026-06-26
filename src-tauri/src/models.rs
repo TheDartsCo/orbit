@@ -192,3 +192,121 @@ pub struct TerminalInfo {
     pub name: String,
     pub available: bool,
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum StatisticsMode {
+    Agent,
+    Model,
+    Project,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum StatisticsPeriod {
+    #[serde(rename = "7d")]
+    SevenDays,
+    #[serde(rename = "30d")]
+    ThirtyDays,
+    #[serde(rename = "90d")]
+    NinetyDays,
+    #[serde(rename = "all")]
+    All,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct StatisticsSummary {
+    pub sessions: u64,
+    pub messages: u64,
+    pub total_tokens: u64,
+    pub active_agents: u64,
+    pub project_count: u64,
+    pub average_messages_per_session: u64,
+    pub average_tokens_per_session: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatisticsSeriesValue {
+    pub key: String,
+    pub label: String,
+    pub value: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StatisticsTimeBucket {
+    pub start: DateTime<Utc>,
+    pub values: Vec<StatisticsSeriesValue>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentStatisticsRow {
+    pub agent: String,
+    pub sessions: u64,
+    pub messages: u64,
+    pub tokens: u64,
+    pub average_messages: u64,
+    pub last_used: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelStatisticsRow {
+    pub model: String,
+    pub sessions: u64,
+    pub messages: u64,
+    pub tokens: u64,
+    pub percentage: f64,
+    pub agent_count: u64,
+    pub top_agent: String,
+    pub last_used: DateTime<Utc>,
+    pub agent_mix: Vec<ProjectAgentShare>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectAgentShare {
+    pub agent: String,
+    pub sessions: u64,
+    pub tokens: u64,
+    pub percentage: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectStatisticsRow {
+    pub project: String,
+    pub sessions: u64,
+    pub messages: u64,
+    pub tokens: u64,
+    pub agent_count: u64,
+    pub top_agent: String,
+    pub last_active: DateTime<Utc>,
+    pub agent_mix: Vec<ProjectAgentShare>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectStatisticsCard {
+    pub project: String,
+    pub sessions: u64,
+    pub tokens: u64,
+    pub last_active: DateTime<Utc>,
+    pub agent_mix: Vec<ProjectAgentShare>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "lowercase")]
+pub enum StatisticsDashboard {
+    Agent {
+        summary: StatisticsSummary,
+        timeline: Vec<StatisticsTimeBucket>,
+        agents: Vec<AgentStatisticsRow>,
+        models: Vec<ModelStatisticsRow>,
+    },
+    Model {
+        summary: StatisticsSummary,
+        timeline: Vec<StatisticsTimeBucket>,
+        models: Vec<ModelStatisticsRow>,
+    },
+    Project {
+        summary: StatisticsSummary,
+        timeline: Vec<StatisticsTimeBucket>,
+        projects: Vec<ProjectStatisticsRow>,
+        cards: Vec<ProjectStatisticsCard>,
+    },
+}

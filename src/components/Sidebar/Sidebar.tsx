@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   Check,
+  BarChart3,
   ChevronDown,
   ChevronsDownUp,
   ChevronsUpDown,
@@ -102,6 +103,7 @@ export function Sidebar({ width }: SidebarProps) {
   const sortConfig = useAppStore((s) => s.sortConfig);
   const setSort = useAppStore((s) => s.setSort);
   const openSettings = useAppStore((s) => s.openSettings);
+  const openStatistics = useAppStore((s) => s.openStatistics);
 
   useEffect(() => {
     if (!columnsMenuOpen && !agentMenuOpen) return;
@@ -555,6 +557,13 @@ export function Sidebar({ width }: SidebarProps) {
           <span className="ml-3 shrink-0">
             {sessions.length} Session{sessions.length !== 1 ? "s" : ""}
           </span>
+        </button>
+        <button
+          onClick={openStatistics}
+          className="flex h-full w-8 shrink-0 items-center justify-center border-l border-border text-text-muted transition-colors hover:bg-bg-hover hover:text-text-secondary"
+          aria-label="Open statistics"
+        >
+          <BarChart3 className="h-4 w-4" />
         </button>
         <button
           onClick={openSettings}

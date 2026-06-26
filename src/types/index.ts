@@ -105,6 +105,18 @@ export const AGENT_COLORS: Record<AgentType, string> = {
   zcode: "bg-amber-500",
 };
 
+export const AGENT_CHART_COLORS: Record<AgentType, string> = {
+  claude: "#fb923c",
+  codex: "#60a5fa",
+  copilot: "#34d399",
+  cursor: "#22d3ee",
+  jetbrains: "#f472b6",
+  opencode: "#e879f9",
+  warp: "#2dd4bf",
+  qoder: "#818cf8",
+  antigravity: "#a78bfa",
+};
+
 export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
   claude: "text-orange-300",
   codex: "text-blue-400",
@@ -152,6 +164,99 @@ export interface TerminalInfo {
   name: string;
   available: boolean;
 }
+
+export type StatisticsMode = "agent" | "model" | "project";
+export type StatisticsPeriod = "7d" | "30d" | "90d" | "all";
+
+export interface StatisticsSummary {
+  sessions: number;
+  messages: number;
+  total_tokens: number;
+  active_agents: number;
+  project_count: number;
+  average_messages_per_session: number;
+  average_tokens_per_session: number;
+}
+
+export interface StatisticsSeriesValue {
+  key: string;
+  label: string;
+  value: number;
+}
+
+export interface StatisticsTimeBucket {
+  start: string;
+  values: StatisticsSeriesValue[];
+}
+
+export interface AgentStatisticsRow {
+  agent: string;
+  sessions: number;
+  messages: number;
+  tokens: number;
+  average_messages: number;
+  last_used: string;
+}
+
+export interface ModelStatisticsRow {
+  model: string;
+  sessions: number;
+  messages: number;
+  tokens: number;
+  percentage: number;
+  agent_count: number;
+  top_agent: string;
+  last_used: string;
+  agent_mix: ProjectAgentShare[];
+}
+
+export interface ProjectAgentShare {
+  agent: string;
+  sessions: number;
+  tokens: number;
+  percentage: number;
+}
+
+export interface ProjectStatisticsRow {
+  project: string;
+  sessions: number;
+  messages: number;
+  tokens: number;
+  agent_count: number;
+  top_agent: string;
+  last_active: string;
+  agent_mix: ProjectAgentShare[];
+}
+
+export interface ProjectStatisticsCard {
+  project: string;
+  sessions: number;
+  tokens: number;
+  last_active: string;
+  agent_mix: ProjectAgentShare[];
+}
+
+export type StatisticsDashboard =
+  | {
+      mode: "agent";
+      summary: StatisticsSummary;
+      timeline: StatisticsTimeBucket[];
+      agents: AgentStatisticsRow[];
+      models: ModelStatisticsRow[];
+    }
+  | {
+      mode: "model";
+      summary: StatisticsSummary;
+      timeline: StatisticsTimeBucket[];
+      models: ModelStatisticsRow[];
+    }
+  | {
+      mode: "project";
+      summary: StatisticsSummary;
+      timeline: StatisticsTimeBucket[];
+      projects: ProjectStatisticsRow[];
+      cards: ProjectStatisticsCard[];
+    };
 
 export const TERMINAL_LABELS: Record<string, string> = {
   terminal: "Terminal",
