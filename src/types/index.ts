@@ -8,9 +8,10 @@ export type AgentType =
   | "opencode"
   | "warp"
   | "qoder"
-  | "antigravity";
+  | "antigravity"
+  | "zcode";
 
-export const ALL_AGENTS: AgentType[] = ["antigravity", "claude", "codex", "copilot", "cursor", "jetbrains", "kilo", "opencode", "qoder", "warp"];
+export const ALL_AGENTS: AgentType[] = ["antigravity", "claude", "codex", "copilot", "cursor", "jetbrains", "kilo", "opencode", "qoder", "warp", "zcode"];
 
 export type MessageRole = "user" | "assistant" | "system" | "tool";
 export type AttachmentType = "image" | "file" | "diff";
@@ -101,6 +102,7 @@ export const AGENT_COLORS: Record<AgentType, string> = {
   warp: "bg-teal-500",
   qoder: "bg-indigo-500",
   antigravity: "bg-violet-500",
+  zcode: "bg-amber-500",
 };
 
 export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
@@ -114,6 +116,7 @@ export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
   warp: "text-teal-300",
   qoder: "text-indigo-300",
   antigravity: "text-violet-300",
+  zcode: "text-amber-300",
 };
 
 export const AGENT_TINTS: Record<AgentType, string> = {
@@ -127,6 +130,7 @@ export const AGENT_TINTS: Record<AgentType, string> = {
   warp: "bg-teal-400/10 border-teal-400/20",
   qoder: "bg-indigo-400/10 border-indigo-400/20",
   antigravity: "bg-violet-400/10 border-violet-400/20",
+  zcode: "bg-amber-400/10 border-amber-400/20",
 };
 
 export const AGENT_LABELS: Record<AgentType, string> = {
@@ -140,6 +144,7 @@ export const AGENT_LABELS: Record<AgentType, string> = {
   warp: "Warp",
   qoder: "Qoder",
   antigravity: "Antigravity",
+  zcode: "ZCode",
 };
 
 export interface TerminalInfo {

@@ -8,6 +8,7 @@ pub mod kilo;
 pub mod opencode;
 pub mod qoder;
 pub mod warp;
+pub mod zcode;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -62,6 +63,7 @@ mod tests {
     use super::opencode::OpenCodeAdapter;
     use super::qoder::QoderAdapter;
     use super::warp::WarpAdapter;
+    use super::zcode::ZCodeAdapter;
     use super::PlatformPaths;
     use std::fs;
     use std::path::PathBuf;
@@ -152,6 +154,10 @@ mod tests {
                 local.join("dev.warp.Warp-Stable").join("warp.sqlite"),
             ]
         );
+        assert_eq!(
+            ZCodeAdapter::windows_data_dir(&paths),
+            Some(home.join(".zcode").join("cli").join("rollout"))
+        );
     }
 
     #[test]
@@ -239,6 +245,7 @@ impl AdapterRegistry {
         reg.register(Box::new(qoder::QoderAdapter::new()));
         reg.register(Box::new(warp::WarpAdapter::new()));
         reg.register(Box::new(antigravity::AntigravityAdapter::new()));
+        reg.register(Box::new(zcode::ZCodeAdapter::new()));
         reg
     }
 

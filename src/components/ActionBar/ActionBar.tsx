@@ -25,7 +25,10 @@ export function ActionBar() {
 
   if (!session) return null;
 
-  const resumeDisabled = session.agent === "jetbrains" || session.agent === "antigravity";
+  const resumeDisabled =
+    session.agent === "jetbrains" ||
+    session.agent === "antigravity" ||
+    session.agent === "zcode";
   const launchDisabled =
     platform === null || (resumeDisabled && platform !== "windows");
 
@@ -35,6 +38,9 @@ export function ActionBar() {
     }
     if (session.agent === "antigravity") {
       return "Antigravity sessions cannot be resumed from Orbit";
+    }
+    if (session.agent === "zcode") {
+      return "ZCode sessions cannot be resumed from Orbit";
     }
     return undefined;
   };
