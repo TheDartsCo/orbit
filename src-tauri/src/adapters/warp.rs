@@ -306,11 +306,19 @@ pub struct TaskEntry {
 }
 
 #[derive(Clone, prost::Message)]
+pub struct ParentRef {
+    #[prost(string, tag = "1")]
+    pub task_id: String,
+}
+
+#[derive(Clone, prost::Message)]
 pub struct WarpTask {
     #[prost(string, tag = "1")]
     pub task_id: String,
     #[prost(string, tag = "2")]
     pub title: String,
+    #[prost(message, tag = "3")]
+    pub parent: Option<ParentRef>,
     #[prost(message, repeated, tag = "5")]
     pub entries: Vec<TaskEntry>,
 }
@@ -584,7 +592,7 @@ impl AgentAdapter for WarpAdapter {
 
         let session = Session {
             id: task_id,
-            parent_session_id: None,
+            parent_session_id: task.parent.as_ref().map(|p| p.task_id.clone()),
             agent: AgentType::Warp,
             title,
             project_path,
@@ -688,5 +696,69 @@ mod tests {
         };
         let touches = warp_file_touches(&tc, 0);
         assert!(touches.is_empty(), "expected no touches, got {:?}", touches);
+    }
+
+    fn encode_warp_task(task: &WarpTask) -> Vec<u8> {
+        let mut buf = Vec::new();
+        use prost::Message;
+        task.encode(&mut buf).unwrap();
+        buf
+    }
+
+    #[tokio::test]
+    async fn parses_subtask_with_parent_session_id() {
+        let parent_id = "ef96cb63-0013-4ad5-8804-804a8ea859fc";
+        let task_id = "99e74862-c28f-4162-815f-54d0ff8e57ca";
+
+        let task = WarpTask {
+            task_id: task_id.to_string(),
+            title: "Sub-task".to_string(),
+            parent: Some(ParentRef {
+                task_id: parent_id.to_string(),
+            }),
+            entries: vec![],
+        };
+
+        let blob = encode_warp_task(&task);
+        let adapter = WarpAdapter::new();
+        {
+            let mut cache = adapter.cache.lock().unwrap();
+            cache.insert(task_id.to_string(), blob);
+        }
+
+        let path = PathBuf::from(format!("warp://task/{}", task_id));
+        let parsed = adapter.parse_session(&path).await.unwrap();
+
+        assert_eq!(parsed.session.id, task_id);
+        assert_eq!(
+            parsed.session.parent_session_id.as_deref(),
+            Some(parent_id)
+        );
+        assert_eq!(parsed.session.agent, AgentType::Warp);
+    }
+
+    #[tokio::test]
+    async fn parses_root_task_without_parent_session_id() {
+        let task_id = "ef96cb63-0013-4ad5-8804-804a8ea859fc";
+
+        let task = WarpTask {
+            task_id: task_id.to_string(),
+            title: "Root task".to_string(),
+            parent: None,
+            entries: vec![],
+        };
+
+        let blob = encode_warp_task(&task);
+        let adapter = WarpAdapter::new();
+        {
+            let mut cache = adapter.cache.lock().unwrap();
+            cache.insert(task_id.to_string(), blob);
+        }
+
+        let path = PathBuf::from(format!("warp://task/{}", task_id));
+        let parsed = adapter.parse_session(&path).await.unwrap();
+
+        assert_eq!(parsed.session.id, task_id);
+        assert_eq!(parsed.session.parent_session_id, None);
     }
 }
