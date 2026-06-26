@@ -6,6 +6,8 @@ import { SessionItem } from "./SessionItem";
 
 const TABLE_HEADER_HEIGHT = 62;
 
+const EMPTY_COLLAPSED: Set<string> = new Set();
+
 interface TreeSession {
   session: Session;
   depth: number;
@@ -16,6 +18,8 @@ interface SessionListProps {
   columnTemplate: string;
   tableMinWidth: number;
   activeColumns: SortColumn[];
+  collapsedParents: Set<string>;
+  onToggleCollapse: (sessionId: string) => void;
   header: ReactNode;
 }
 
@@ -23,6 +27,8 @@ export function SessionList({
   columnTemplate,
   tableMinWidth,
   activeColumns,
+  collapsedParents,
+  onToggleCollapse,
   header,
 }: SessionListProps) {
   const sessions = useAppStore((s) => s.sessions);
@@ -42,7 +48,11 @@ export function SessionList({
     () => sortSessions(sessions, sortConfig),
     [sessions, sortConfig]
   );
-  const treeSessions = useMemo(() => buildSessionTree(sortedSessions), [sortedSessions]);
+  const effectiveCollapsed = searchQuery ? EMPTY_COLLAPSED : collapsedParents;
+  const treeSessions = useMemo(
+    () => buildSessionTree(sortedSessions, effectiveCollapsed),
+    [sortedSessions, effectiveCollapsed]
+  );
 
   const virtualizer = useVirtualizer({
     count: treeSessions.length,
@@ -158,6 +168,8 @@ export function SessionList({
                 session={session}
                 depth={depth}
                 childCount={childCount}
+                isCollapsed={collapsedParents.has(session.id)}
+                onToggleCollapse={() => onToggleCollapse(session.id)}
                 isSelected={selectedSessionId === session.id}
                 onClick={() => selectSession(session.id)}
                 searchQuery={searchQuery}
@@ -216,7 +228,7 @@ function sortSessions(sessions: Session[], sortConfig: SortConfig | null): Sessi
   return sorted;
 }
 
-function buildSessionTree(sessions: Session[]): TreeSession[] {
+function buildSessionTree(sessions: Session[], collapsedParents: Set<string>): TreeSession[] {
   const byId = new Map(sessions.map((session) => [session.id, session]));
   const childrenByParent = new Map<string, Session[]>();
   const roots: Session[] = [];
@@ -236,6 +248,7 @@ function buildSessionTree(sessions: Session[]): TreeSession[] {
   const append = (session: Session, depth: number) => {
     const children = childrenByParent.get(session.id) ?? [];
     flattened.push({ session, depth, childCount: children.length });
+    if (collapsedParents.has(session.id)) return;
     for (const child of children) {
       append(child, depth + 1);
     }

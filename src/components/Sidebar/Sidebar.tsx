@@ -9,6 +9,8 @@ import {
 import {
   Check,
   ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Columns3,
   Filter,
   RefreshCw,
@@ -125,6 +127,52 @@ export function Sidebar({ width }: SidebarProps) {
   }, []);
 
   const activeColumns = useMemo(() => COLUMNS.filter((c) => visibleColumns.has(c.id)), [visibleColumns]);
+
+  const parentIds = useMemo(() => {
+    const childParentIds = new Set<string>();
+    const ids = new Set(sessions.map((s) => s.id));
+    for (const session of sessions) {
+      if (session.parent_session_id && ids.has(session.parent_session_id)) {
+        childParentIds.add(session.parent_session_id);
+      }
+    }
+    return childParentIds;
+  }, [sessions]);
+
+  const [collapsedParents, setCollapsedParents] = useState<Set<string>>(() => new Set());
+  const seenParentIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const newlySeen: string[] = [];
+    for (const id of parentIds) {
+      if (!seenParentIds.current.has(id)) newlySeen.push(id);
+    }
+    seenParentIds.current = new Set(parentIds);
+    if (newlySeen.length === 0) return;
+    setCollapsedParents((prev) => {
+      const next = new Set(prev);
+      for (const id of newlySeen) next.add(id);
+      return next;
+    });
+  }, [parentIds]);
+
+  const allCollapsed = parentIds.size > 0 && collapsedParents.size >= parentIds.size;
+
+  const toggleCollapse = useCallback((sessionId: string) => {
+    setCollapsedParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
+  }, []);
+
+  const toggleCollapseAll = useCallback(() => {
+    setCollapsedParents((prev) => {
+      if (prev.size >= parentIds.size) return new Set();
+      return new Set(parentIds);
+    });
+  }, [parentIds]);
 
   const branches = useMemo(() => {
     const set = new Set<string>();
@@ -369,7 +417,21 @@ export function Sidebar({ width }: SidebarProps) {
       <div className="border-b border-border bg-bg-secondary">
         <div className="flex h-[58px] items-center gap-3 px-4">
           <SearchBar />
-          <div className="relative ml-auto flex shrink-0 items-center text-text-secondary">
+          <div className="relative ml-auto flex shrink-0 items-center gap-2 text-text-secondary">
+            {parentIds.size > 0 && (
+              <button
+                onClick={toggleCollapseAll}
+                className="flex h-9 items-center gap-2 rounded-lg border border-border bg-bg-secondary px-3 text-xs font-semibold transition-colors hover:bg-bg-hover hover:text-text-primary"
+                aria-label={allCollapsed ? "Expand all sessions" : "Collapse all sessions"}
+              >
+                {allCollapsed ? (
+                  <ChevronsUpDown className="h-4 w-4" />
+                ) : (
+                  <ChevronsDownUp className="h-4 w-4" />
+                )}
+                <span>{allCollapsed ? "Expand all" : "Collapse all"}</span>
+              </button>
+            )}
             <button
               onClick={() => setColumnsMenuOpen((v) => !v)}
               className={`flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition-colors ${
@@ -413,6 +475,8 @@ export function Sidebar({ width }: SidebarProps) {
         columnTemplate={columnTemplate}
         tableMinWidth={tableMinWidth}
         activeColumns={activeColumns.map((c) => c.id)}
+        collapsedParents={collapsedParents}
+        onToggleCollapse={toggleCollapse}
         header={
           <div className="flex h-[62px] shrink-0 items-center border-b border-border bg-bg-secondary px-4">
             <div

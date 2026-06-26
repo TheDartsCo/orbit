@@ -7,6 +7,8 @@ interface SessionItemProps {
   session: Session;
   depth: number;
   childCount: number;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
   isSelected: boolean;
   onClick: () => void;
   searchQuery: string | null;
@@ -18,6 +20,8 @@ export function SessionItem({
   session,
   depth,
   childCount,
+  isCollapsed,
+  onToggleCollapse,
   isSelected,
   onClick,
   searchQuery,
@@ -42,7 +46,7 @@ export function SessionItem({
       }`}
     >
       {activeColumns.map((colId) => (
-        <div key={colId}>{renderCell(colId, session, isChild, childCount, searchQuery, depth, timeStr, projectName)}</div>
+        <div key={colId}>{renderCell(colId, session, isChild, childCount, searchQuery, depth, timeStr, projectName, isCollapsed, onToggleCollapse)}</div>
       ))}
     </button>
   );
@@ -57,6 +61,8 @@ function renderCell(
   depth: number,
   timeStr: string,
   projectName: string,
+  isCollapsed: boolean,
+  onToggleCollapse: () => void,
 ): React.ReactNode {
   switch (colId) {
     case "agent":
@@ -87,7 +93,18 @@ function renderCell(
           {isChild ? (
             <span className="shrink-0 text-[14px] text-text-muted">↳</span>
           ) : childCount > 0 ? (
-            <span className="shrink-0 text-[12px] text-accent">▾</span>
+            <span
+              role="button"
+              tabIndex={-1}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleCollapse();
+              }}
+              className="shrink-0 cursor-pointer rounded px-0.5 text-[12px] text-accent hover:text-text-primary"
+              aria-label={isCollapsed ? "Expand children" : "Collapse children"}
+            >
+              {isCollapsed ? "▸" : "▾"}
+            </span>
           ) : null}
           <span className="min-w-0 shrink truncate">
             <Highlight text={session.title} query={searchQuery} />
