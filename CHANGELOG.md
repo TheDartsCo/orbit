@@ -1,5 +1,65 @@
 # Changelog
 
+## v0.6.0
+
+### New Agent Adapters
+
+- **Kilo Code** — parses JSONL session files from Kilo Code (VS Code extension + CLI); supports macOS, Linux, and Windows discovery with full resume support
+- **ZCode** — parses JSON session files from `~/.zcode/cli/rollout/` with tail-window merging; supports macOS, Linux, and Windows discovery
+
+### Statistics Dashboard
+
+- New **model statistics** dashboard with aggregate model usage, session counts, and timeline data
+- **Period-based filtering** for weekly, monthly, and yearly breakdowns
+- **Formatted timeline labels** that adjust by time period granularity
+
+### Session Browsing
+
+- **Accordion session collapse** — parent sessions with sub-sessions can be collapsed/expanded in the session list
+- **Warp sub-session linking** — Warp sub-sessions (tool calls) are now associated with their parent session via protobuf field 3 parsing
+
+### Fixes
+
+- **Cursor project path deduplication** — merged variant cursor project paths to prevent duplicate sessions
+- **Statistics timeline labels** — fixed label formatting by period granularity
+
+### Technical
+
+- Added `KiloCodeAdapter` with CLI DB active-session tracking and multi-platform resume (cd + kilo --resume on Unix, PowerShell-compatible on Windows)
+- Added `ZCodeAdapter` with JSON session parsing, tool-call extraction, and tail-window deduplication
+- Added `StatisticsAggregator` backend with SQL aggregation queries for model stats and timeline data
+- Added statistics dashboard UI components with Tailwind-styled charts
+- Updated Warp adapter to parse protobuf field 3 for parent-child session associations
+- Updated session list virtualization to support accordion collapse/expand
+- Version bumped to 0.6.0
+
+## v0.5.0
+
+### Linux Support
+
+- **Linux adapter discovery** — Claude Code, Codex, Cursor, and OpenCode session discovery enabled on Linux
+- **Linux resume terminals** — session resume works on Linux with Terminal.app-style terminal detection; supports GNOME Console, GNOME Terminal, Konsole, and xterm
+- **Linux AppImage build** — local AppImage generation with build and verification scripts
+
+### Fixes
+
+- **OpenCode SQLite sessions** — fixed parsing of newer OpenCode versions that use SQLite-backed storage on macOS
+- **Codex resume command** — updated to match current Codex CLI resume syntax
+- **Linux terminal detection** — tightened terminal precedence ordering for reliable resume
+- **Adapter ordering** — reordered ALL_AGENTS array for consistent UI filter chip order
+
+### Documentation
+
+- Documented local Linux AppImage build process, platform data paths, and adapter discovery scope
+
+### Technical
+
+- Added `PlatformPaths` helper for OS-agnostic filesystem path resolution
+- Added shell quoting utility (`shell_quote`) for safe command construction across platforms
+- Added AppImage build script (`build-linux-appimage.sh`) with integrity verification
+- Extended `Terminal` enum with Linux terminal variants and auto-detection logic
+- Version bumped to 0.5.0
+
 ## v0.4.0
 
 ### New Agent Adapter
