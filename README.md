@@ -40,6 +40,7 @@ Orbit makes that history usable:
 - Read long transcripts without loading the entire conversation into the UI
 - See active sessions and indexing status
 - Resume supported sessions in your preferred terminal
+- View model usage statistics and session timelines in the dashboard
 - Keep everything local
 
 Orbit reads local session files and stores its index in a local SQLite
@@ -128,9 +129,11 @@ their source session files.
 | Cursor | ✅ | ✅ | Opens project | 🧪 | 📋 Copy command | ✅ Opens project |
 | GitHub Copilot CLI | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | Planned |
 | JetBrains AI | ✅ | ✅ | Not available | 🧪 | 📋 Session ID | Planned |
+| Kilo Code | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | ✅ Launch |
 | OpenCode | ✅ | ✅ | ✅ Launch | 🧪 | 📋 Copy command | ✅ Launch |
 | Qoder | ✅ | ✅ | Opens Qoder | 🧪 | 📋 Copy command | Planned |
 | Warp | ✅ | ✅ | Opens Warp | 🧪 | 📋 Copy command | Planned |
+| ZCode | ✅ | ✅ | Not available | 🧪 | 📋 Copy command | Not available |
 
 **Legend:** ✅ supported · 🧪 implemented and unit-tested, native Windows
 verification pending · 📋 shown in a copyable Windows dialog
@@ -176,8 +179,8 @@ remain untouched and can be indexed again.
 - macOS is the primary development and release platform.
 - Windows adapter discovery is implemented and unit-tested, but still needs
   native Windows build and runtime verification.
-- Linux is supported for local development with Claude Code, Codex, Cursor, and
-  OpenCode discovery. Local AppImage generation is verified on the current
+- Linux is supported for local development with Claude Code, Codex, Cursor, Kilo Code, OpenCode, and
+  ZCode discovery. Local AppImage generation is verified on the current
   Ubuntu development machine only.
 - App bundles are not signed or notarized yet.
 - Session formats can change when agent vendors update their tools.
