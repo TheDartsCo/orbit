@@ -111,10 +111,12 @@ export const AGENT_CHART_COLORS: Record<AgentType, string> = {
   copilot: "#34d399",
   cursor: "#22d3ee",
   jetbrains: "#f472b6",
+  kilo: "#38bdf8",
   opencode: "#e879f9",
   warp: "#2dd4bf",
   qoder: "#818cf8",
   antigravity: "#a78bfa",
+  zcode: "#fbbf24",
 };
 
 export const AGENT_TEXT_COLORS: Record<AgentType, string> = {
