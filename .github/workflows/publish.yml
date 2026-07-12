@@ -109,6 +109,7 @@ jobs:
       - name: download all release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           mkdir -p assets
           gh release download "${{ github.ref_name }}" --dir assets || \
@@ -122,6 +123,7 @@ jobs:
       - name: upload checksums to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release upload "${{ github.ref_name }}" assets/checksums.txt --clobber
 
