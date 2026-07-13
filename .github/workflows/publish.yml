@@ -114,8 +114,12 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           mkdir -p assets
-          gh release download "${{ github.ref_name }}" --dir assets || \
-            { echo "Release not found yet, retrying in 30s..."; sleep 30; gh release download "${{ github.ref_name }}" --dir assets; }
+          for i in 1 2 3 4 5 6; do
+            gh release download "${{ github.ref_name }}" --dir assets --clobber && break
+            echo "Attempt $i failed, retrying in 30s..."
+            sleep 30
+          done
+          test -n "$(ls -A assets)"
 
       - name: generate checksums
         run: |
@@ -142,10 +146,15 @@ jobs:
       - name: download release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           mkdir -p assets
-          gh release download "${{ github.ref_name }}" --dir assets || \
-            { echo "Release not found yet, retrying in 30s..."; sleep 30; gh release download "${{ github.ref_name }}" --dir assets; }
+          for i in 1 2 3 4 5 6; do
+            gh release download "${{ github.ref_name }}" --dir assets --clobber && break
+            echo "Attempt $i failed, retrying in 30s..."
+            sleep 30
+          done
+          test -n "$(ls -A assets)"
 
       - name: attest assets
         uses: actions/attest@v4
