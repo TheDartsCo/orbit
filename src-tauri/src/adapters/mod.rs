@@ -155,8 +155,8 @@ mod tests {
             ]
         );
         assert_eq!(
-            ZCodeAdapter::windows_data_dir(&paths),
-            Some(home.join(".zcode").join("cli").join("rollout"))
+            ZCodeAdapter::windows_db_path(&paths),
+            Some(home.join(".zcode").join("cli").join("db").join("db.sqlite"))
         );
     }
 

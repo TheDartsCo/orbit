@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
+use rusqlite::OpenFlags;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -8,13 +9,17 @@ use crate::models::*;
 
 /// Adapter for ZCode (https://zcode.z.ai).
 ///
-/// ZCode persists raw model I/O as JSONL at `~/.zcode/cli/rollout/model-io-<sessionId>.jsonl`.
-/// Each line is one complete API call (`type: "model_io"`) using the Vercel AI SDK message
-/// shape: `.request.messages` is a sibling of `.request.body` and uses a first-class `tool`
-/// role plus a sibling `toolCalls[]` array on assistant turns (NOT Anthropic `tool_use`/
-/// `tool_result` content blocks). Each line is a full conversation snapshot that grows until
-/// the conversation exceeds 64 messages, after which only the tail is sent (`messagesKind:
-/// "tail"`). We parse the freshest `main_turn` snapshot for the transcript.
+/// ZCode's authoritative session store is a SQLite database at
+/// `~/.zcode/cli/db/db.sqlite` (root overridable via `ZCODE_STORAGE_DIR`). The `session`
+/// table is the index (id, title, directory/cwd, parent_id, time_created/updated,
+/// task_type); `message` holds per-turn metadata (role, model, tokens, contextSnapshot with
+/// gitBranch); `part` holds the typed content blocks (text / reasoning / tool / file /
+/// step-*). The companion `~/.zcode/cli/rollout/*.jsonl` files are raw model-I/O logs that
+/// ZCode garbage-collects, so they can't be relied on as a complete source — the DB is.
+///
+/// Modeled on the Warp adapter: sessions are addressed via synthetic
+/// `zcode://session/<id>` paths, the DB is opened read-only, and the indexer's
+/// `compute_hash`/`mark_stale_sessions` already handle non-filesystem paths.
 pub struct ZCodeAdapter;
 
 impl ZCodeAdapter {
@@ -22,31 +27,7 @@ impl ZCodeAdapter {
         Self
     }
 
-    fn data_dir_path_from_home(home: &Path) -> Option<PathBuf> {
-        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
-            Some(home.join(".zcode").join("cli").join("rollout"))
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn windows_data_dir(paths: &PlatformPaths) -> Option<PathBuf> {
-        paths.home_join(".zcode").map(|p| p.join("cli").join("rollout"))
-    }
-
-    fn data_dir() -> Option<PathBuf> {
-        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
-            let home = dirs::home_dir()?;
-            Self::data_dir_path_from_home(&home).filter(|path| path.is_dir())
-        } else if cfg!(target_os = "windows") {
-            Self::windows_data_dir(&PlatformPaths::system()).filter(|path| path.is_dir())
-        } else {
-            None
-        }
-    }
-
-    /// `<ZCODE_STORAGE_DIR>/cli/rollout`, or the `~/.zcode` default. Mirrors how the ZCode
-    /// CLI itself resolves its storage root.
+    /// `<ZCODE_STORAGE_DIR>` or `~/.zcode` — the same resolution ZCode itself uses.
     fn storage_root() -> Option<PathBuf> {
         if let Ok(custom) = std::env::var("ZCODE_STORAGE_DIR") {
             let trimmed = custom.trim().to_string();
@@ -56,36 +37,53 @@ impl ZCodeAdapter {
         }
         dirs::home_dir().map(|h| h.join(".zcode"))
     }
-}
 
-/// Extract visible text from a Vercel-AI-SDK message `content` value: either a plain string
-/// or an array of `{type:"text", text}` / `{type:"reasoning", text}` blocks. Reasoning is
-/// skipped (internal thinking) — only `text` blocks contribute.
-fn extract_text(content: &serde_json::Value) -> String {
-    if let Some(text) = content.as_str() {
-        return text.to_string();
+    fn db_path_from_root(root: &Path) -> PathBuf {
+        root.join("cli").join("db").join("db.sqlite")
     }
-    if let Some(arr) = content.as_array() {
-        let mut parts = Vec::new();
-        for item in arr {
-            let item_type = item.get("type").and_then(|t| t.as_str());
-            if item_type == Some("text") {
-                if let Some(text) = item.get("text").and_then(|t| t.as_str()) {
-                    if !text.trim().is_empty() {
-                        parts.push(text.to_string());
-                    }
-                }
-            }
+
+    /// Test-only helper asserting the macOS/Linux default lives under `~/.zcode`.
+    #[cfg(test)]
+    fn db_path_from_home(home: &Path) -> Option<PathBuf> {
+        if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
+            Some(Self::db_path_from_root(&home.join(".zcode")))
+        } else {
+            None
         }
-        return parts.join("\n");
     }
-    String::new()
-}
 
-/// True if the message content is an injected harness `<system-reminder>…</system-reminder>`
-/// block (skill lists, env context, todo nudges) rather than a real human prompt.
-fn is_system_reminder(content: &str) -> bool {
-    content.trim_start().starts_with("<system-reminder>")
+    pub(crate) fn windows_db_path(paths: &PlatformPaths) -> Option<PathBuf> {
+        paths.home_join(".zcode").map(|p| Self::db_path_from_root(&p))
+    }
+
+    fn db_path() -> Option<PathBuf> {
+        // Honor an explicit ZCODE_STORAGE_DIR override on every platform; otherwise fall
+        // back to the platform default (Windows resolves via USERPROFILE, matching ZCode).
+        let candidate = if cfg!(target_os = "windows") {
+            match Self::storage_root() {
+                Some(root) => Self::db_path_from_root(&root),
+                None => Self::windows_db_path(&PlatformPaths::system())?,
+            }
+        } else {
+            match Self::storage_root() {
+                Some(root) => Self::db_path_from_root(&root),
+                None => return None,
+            }
+        };
+        if candidate.is_file() {
+            Some(candidate)
+        } else {
+            None
+        }
+    }
+
+    fn open_db(path: &Path) -> Result<rusqlite::Connection, String> {
+        rusqlite::Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(|e| format!("Failed to open ZCode DB: {}", e))
+    }
 }
 
 /// Map a ZCode tool name to a file-operation classification for `FileTouch`.
@@ -110,37 +108,11 @@ fn extract_file_path(input: &serde_json::Value) -> Option<String> {
     None
 }
 
-/// Find `Primary working directory: <path>` inside a system-prompt text. Returns the trimmed
-/// path (which may contain spaces). Scans the text rather than pulling a structured field —
-/// ZCode embeds the cwd only inside prompt text.
-fn extract_project_path(system_texts: &[&str]) -> String {
-    const MARKER: &str = "Primary working directory: ";
-    for text in system_texts {
-        if let Some(idx) = text.find(MARKER) {
-            let rest = &text[idx + MARKER.len()..];
-            // The path runs to the end of the line — the system prompt never embeds it
-            // mid-sentence, so the first newline terminates it.
-            let line_end = rest.find('\n').unwrap_or(rest.len());
-            let path = rest[..line_end].trim();
-            if !path.is_empty() {
-                return path.to_string();
-            }
-        }
-    }
-    String::new()
-}
-
-/// Parse the JSON `{"title":"..."}` payload that ZCode's `session_title` model call returns
-/// in its `response.text`. Falls back to the raw text if it isn't JSON.
-fn parse_title_response(text: &str) -> String {
-    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(text) {
-        if let Some(title) = parsed.get("title").and_then(|t| t.as_str()) {
-            if !title.trim().is_empty() {
-                return title.trim().to_string();
-            }
-        }
-    }
-    text.trim().to_string()
+/// Epoch-milliseconds (ZCode's `time_created`/`time_updated`) → UTC DateTime.
+fn ms_to_datetime(ms: i64) -> DateTime<Utc> {
+    Utc.timestamp_opt(ms / 1000, ((ms % 1000) * 1_000_000) as u32)
+        .single()
+        .unwrap_or_else(Utc::now)
 }
 
 #[async_trait]
@@ -154,217 +126,172 @@ impl AgentAdapter for ZCodeAdapter {
     }
 
     async fn detect(&self) -> bool {
-        Self::data_dir().is_some()
+        Self::db_path().is_some()
     }
 
     async fn scan(&self) -> Vec<SessionLocation> {
-        // Prefer the env-overridable storage root so custom installs are discovered, but fall
-        // back to the validated default data dir (which already gates on `.is_dir()`).
-        let dir = match Self::storage_root() {
-            Some(root) if root.join("cli").join("rollout").is_dir() => {
-                root.join("cli").join("rollout")
-            }
-            _ => match Self::data_dir() {
-                Some(d) => d,
-                None => return Vec::new(),
-            },
+        let db_path = match Self::db_path() {
+            Some(p) => p,
+            None => return Vec::new(),
+        };
+        let conn = match Self::open_db(&db_path) {
+            Ok(c) => c,
+            Err(_) => return Vec::new(),
         };
 
-        let mut locations = Vec::new();
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(e) => e,
-            Err(_) => return locations,
+        let mut stmt = match conn.prepare(
+            "SELECT id, time_updated FROM session WHERE task_type = 'interactive' \
+             ORDER BY time_updated DESC",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
         };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-                continue;
-            }
-            let name = path.file_name().unwrap_or_default().to_string_lossy();
-            if !name.starts_with("model-io-") {
-                continue;
-            }
-            let modified = std::fs::metadata(&path)
-                .ok()
-                .and_then(|m| m.modified().ok())
-                .and_then(|t| {
-                    DateTime::from_timestamp(
-                        t.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64,
-                        0,
-                    )
-                })
-                .unwrap_or_default();
-            locations.push(SessionLocation {
-                path,
-                last_modified: modified,
-            });
-        }
-        locations
+
+        let rows = match stmt.query_map([], |row| {
+            let id: String = row.get(0)?;
+            let time_updated: i64 = row.get(1)?;
+            Ok((id, time_updated))
+        }) {
+            Ok(r) => r,
+            Err(_) => return Vec::new(),
+        };
+
+        rows.flatten()
+            .map(|(id, time_updated)| SessionLocation {
+                path: PathBuf::from(format!("zcode://session/{}", id)),
+                last_modified: ms_to_datetime(time_updated),
+            })
+            .collect()
     }
 
     async fn parse_session(&self, path: &Path) -> Result<NormalizedSession, String> {
-        let content =
-            std::fs::read_to_string(path).map_err(|e| format!("Failed to read: {}", e))?;
+        let session_id = path
+            .to_string_lossy()
+            .strip_prefix("zcode://session/")
+            .ok_or_else(|| "Invalid zcode session path".to_string())?
+            .to_string();
 
-        // First pass: collect JSON lines partitioned by querySource. `main_turn` are real
-        // conversation turns; `session_title` is an auxiliary title-generation call.
-        let mut main_turns: Vec<&str> = Vec::new();
-        let mut title_from_title_call: Option<String> = None;
+        let db_path = Self::db_path().ok_or_else(|| "ZCode DB not found".to_string())?;
+        let conn = Self::open_db(&db_path)?;
 
-        for line in content.lines() {
-            if line.trim().is_empty() {
-                continue;
-            }
-            let json: serde_json::Value = match serde_json::from_str(line) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
+        // --- session row: title, cwd, parent, timestamps ---
+        let (title, project_path, parent_session_id, time_created, time_updated): (
+            String,
+            String,
+            Option<String>,
+            i64,
+            i64,
+        ) = conn
+            .prepare(
+                "SELECT title, directory, parent_id, time_created, time_updated \
+                 FROM session WHERE id = ?1",
+            )
+            .map_err(|e| e.to_string())?
+            .query_row([&session_id], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            })
+            .map_err(|e| format!("Session {} not found: {}", session_id, e))?;
 
-            let query_source = json.get("querySource").and_then(|q| q.as_str()).unwrap_or("");
-            match query_source {
-                "main_turn" => main_turns.push(line),
-                "session_title" => {
-                    if title_from_title_call.is_none() {
-                        if let Some(text) = json
-                            .get("response")
-                            .and_then(|r| r.get("text"))
-                            .and_then(|t| t.as_str())
-                        {
-                            let parsed = parse_title_response(text);
-                            if !parsed.is_empty() {
-                                title_from_title_call = Some(parsed);
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
+        // --- messages (ordered) ---
+        let mut messages_query = conn
+            .prepare("SELECT id, data FROM message WHERE session_id = ?1 ORDER BY time_created, id")
+            .map_err(|e| e.to_string())?;
+        let message_rows: Vec<(String, serde_json::Value)> = messages_query
+            .query_map([&session_id], |row| {
+                let id: String = row.get(0)?;
+                let data: String = row.get(1)?;
+                Ok((id, serde_json::from_str(&data).unwrap_or(serde_json::Value::Null)))
+            })
+            .map_err(|e| e.to_string())?
+            .flatten()
+            .collect();
+        drop(messages_query);
+
+        // --- parts (ordered), grouped by message_id ---
+        let mut parts_query = conn
+            .prepare("SELECT message_id, data FROM part WHERE session_id = ?1 ORDER BY time_created, id")
+            .map_err(|e| e.to_string())?;
+        let mut parts_by_message: BTreeMap<String, Vec<serde_json::Value>> = BTreeMap::new();
+        let part_rows = parts_query
+            .query_map([&session_id], |row| {
+                let message_id: String = row.get(0)?;
+                let data: String = row.get(1)?;
+                Ok((message_id, serde_json::from_str(&data).unwrap_or(serde_json::Value::Null)))
+            })
+            .map_err(|e| e.to_string())?;
+        for (message_id, data) in part_rows.flatten() {
+            parts_by_message.entry(message_id).or_default().push(data);
         }
+        drop(parts_query);
 
-        if main_turns.is_empty() {
-            return Err("No main_turn entries, skipping".to_string());
-        }
-
-        // Aggregate session-level metadata across every main_turn line (tokens, timestamps,
-        // model). The transcript is NOT built from a single line: each line carries only a
-        // windowed slice `[messageOffset, messageOffset+len)` of the conversation. Once a
-        // session exceeds 64 messages ZCode switches from `full` to `tail` snapshots and
-        // starts dropping the head (including the first user message). We therefore merge
-        // every line's window by global message index to reconstruct the full conversation.
-        let mut session_id = String::new();
+        // --- emit Orbit messages ---
+        let mut messages: Vec<Message> = Vec::new();
+        let mut file_touches: Vec<FileTouch> = Vec::new();
         let mut model: Option<String> = None;
-        let mut created_at = Utc::now();
-        let mut updated_at = Utc::now();
+        let mut git_branch: Option<String> = None;
         let mut input_tokens: u64 = 0;
         let mut output_tokens: u64 = 0;
         let mut cached_tokens: u64 = 0;
-        // Global-index → message object. Later lines overwrite earlier ones for the same index,
-        // which is correct: the tail/refresh windows are fresher copies of the same messages.
-        let mut merged: BTreeMap<u64, serde_json::Value> = BTreeMap::new();
-        let mut last_line: Option<serde_json::Value> = None;
-        let mut first_ts = true;
-
-        for line in &main_turns {
-            let json: serde_json::Value = serde_json::from_str(line).map_err(|e| e.to_string())?;
-
-            if session_id.is_empty() {
-                if let Some(id) = json.get("sessionId").and_then(|s| s.as_str()) {
-                    session_id = id.to_string();
-                }
-            }
-            if model.is_none() {
-                if let Some(m) = json.get("model").and_then(|m| m.get("modelId")).and_then(|m| m.as_str()) {
-                    model = Some(m.to_string());
-                }
-            }
-
-            if let Some(started) = json
-                .get("startedAt")
-                .and_then(|s| s.as_str())
-                .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
-                .map(|dt| dt.with_timezone(&Utc))
-            {
-                if first_ts {
-                    created_at = started;
-                    first_ts = false;
-                }
-            }
-            if let Some(completed) = json
-                .get("completedAt")
-                .and_then(|s| s.as_str())
-                .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
-                .map(|dt| dt.with_timezone(&Utc))
-            {
-                updated_at = completed;
-            }
-
-            if let Some(usage) = json.get("response").and_then(|r| r.get("usage")) {
-                if let Some(n) = usage.get("inputTokens").and_then(|v| v.as_u64()) {
-                    input_tokens = input_tokens.saturating_add(n);
-                }
-                if let Some(n) = usage.get("outputTokens").and_then(|v| v.as_u64()) {
-                    output_tokens = output_tokens.saturating_add(n);
-                }
-                if let Some(n) = usage.get("cacheReadTokens").and_then(|v| v.as_u64()) {
-                    cached_tokens = cached_tokens.saturating_add(n);
-                }
-            }
-
-            // Splice this line's windowed slice into the global map. Each message at
-            // `messages[i]` corresponds to global index `messageOffset + i`.
-            let offset = json
-                .get("request")
-                .and_then(|r| r.get("messageOffset"))
-                .and_then(|o| o.as_u64())
-                .unwrap_or(0);
-            if let Some(msgs) = json
-                .get("request")
-                .and_then(|r| r.get("messages"))
-                .and_then(|m| m.as_array())
-            {
-                for (i, msg) in msgs.iter().enumerate() {
-                    merged.insert(offset + i as u64, msg.clone());
-                }
-            }
-
-            last_line = Some(json);
-        }
-
-        if session_id.is_empty() {
-            session_id = path
-                .file_stem()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .trim_start_matches("model-io-")
-                .to_string();
-        }
-
-        // Collect system-prompt texts for cwd extraction (also reachable via
-        // `.request.body.system[]`, but the leading system messages hold the same text).
-        let mut system_texts: Vec<String> = Vec::new();
-
-        let mut messages: Vec<Message> = Vec::new();
-        let mut file_touches: Vec<FileTouch> = Vec::new();
-        let mut title = title_from_title_call.unwrap_or_default();
+        let mut reasoning_tokens: u64 = 0;
         let mut seq: u32 = 0;
 
-        // Emit the reconstructed conversation in global order.
-        for msg in merged.values() {
-            let role = msg.get("role").and_then(|r| r.as_str()).unwrap_or("");
-            match role {
-                "system" => {
-                    let text = extract_text(msg.get("content").unwrap_or(&serde_json::Value::Null));
-                    if !text.is_empty() {
-                        system_texts.push(text);
+        for (message_id, data) in &message_rows {
+            let role = data.get("role").and_then(|r| r.as_str()).unwrap_or("");
+            let parts = parts_by_message.get(message_id);
+
+            // First assistant message wins for the model; any message's contextSnapshot
+            // (user messages carry it) can supply the git branch.
+            if role == "assistant" && model.is_none() {
+                if let Some(m) = data.get("modelID").and_then(|m| m.as_str()) {
+                    if !m.is_empty() {
+                        model = Some(m.to_string());
                     }
                 }
+            }
+            if git_branch.is_none() {
+                git_branch = data
+                    .get("contextSnapshot")
+                    .and_then(|c| c.get("envInfo"))
+                    .and_then(|e| e.get("gitBranch"))
+                    .and_then(|b| b.as_str())
+                    .filter(|s| !s.is_empty())
+                    .map(ToString::to_string);
+            }
+            // Assistant tokens accumulate per-turn.
+            if role == "assistant" {
+                if let Some(tokens) = data.get("tokens") {
+                    input_tokens =
+                        input_tokens.saturating_add(tokens.get("input").and_then(|v| v.as_u64()).unwrap_or(0));
+                    output_tokens = output_tokens
+                        .saturating_add(tokens.get("output").and_then(|v| v.as_u64()).unwrap_or(0));
+                    cached_tokens = cached_tokens
+                        .saturating_add(tokens.get("cache").and_then(|c| c.get("read")).and_then(|v| v.as_u64()).unwrap_or(0));
+                    reasoning_tokens = reasoning_tokens
+                        .saturating_add(tokens.get("reasoning").and_then(|v| v.as_u64()).unwrap_or(0));
+                }
+            }
+
+            match role {
                 "user" => {
-                    let text = extract_text(msg.get("content").unwrap_or(&serde_json::Value::Null));
-                    if text.trim().is_empty() || is_system_reminder(&text) {
+                    let text = parts
+                        .map(|ps| {
+                            ps.iter()
+                                .filter_map(|p| {
+                                    (p.get("type").and_then(|t| t.as_str()) == Some("text"))
+                                        .then(|| p.get("text").and_then(|t| t.as_str()).unwrap_or(""))
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        })
+                        .unwrap_or_default();
+                    if text.trim().is_empty() {
                         continue;
-                    }
-                    if title.is_empty() {
-                        title = text.chars().take(100).collect();
                     }
                     messages.push(Message {
                         id: uuid::Uuid::new_v4().to_string(),
@@ -380,33 +307,52 @@ impl AgentAdapter for ZCodeAdapter {
                     seq += 1;
                 }
                 "assistant" => {
-                    let text = extract_text(msg.get("content").unwrap_or(&serde_json::Value::Null));
-                    if !text.trim().is_empty() {
-                        messages.push(Message {
-                            id: uuid::Uuid::new_v4().to_string(),
-                            session_id: session_id.clone(),
-                            role: MessageRole::Assistant,
-                            content: text,
-                            timestamp: None,
-                            sequence: seq,
-                            tool_name: None,
-                            tool_input: None,
-                            tool_output: None,
-                        });
-                        seq += 1;
-                    }
+                    // Emit visible text first (if any), then each tool call in order.
+                    if let Some(ps) = parts {
+                        let text: String = ps
+                            .iter()
+                            .filter_map(|p| {
+                                (p.get("type").and_then(|t| t.as_str()) == Some("text"))
+                                    .then(|| p.get("text").and_then(|t| t.as_str()).unwrap_or("").to_string())
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        if !text.trim().is_empty() {
+                            messages.push(Message {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                session_id: session_id.clone(),
+                                role: MessageRole::Assistant,
+                                content: text,
+                                timestamp: None,
+                                sequence: seq,
+                                tool_name: None,
+                                tool_input: None,
+                                tool_output: None,
+                            });
+                            seq += 1;
+                        }
 
-                    // Assistant tool calls are a sibling `toolCalls[]` array; each becomes
-                    // its own Tool message. Their results arrive later as `role:"tool"` msgs.
-                    if let Some(tool_calls) = msg.get("toolCalls").and_then(|t| t.as_array()) {
-                        for call in tool_calls {
-                            let tool_name = call
-                                .get("name")
-                                .and_then(|n| n.as_str())
+                        for p in ps {
+                            if p.get("type").and_then(|t| t.as_str()) != Some("tool") {
+                                continue;
+                            }
+                            let tool_name = p
+                                .get("tool")
+                                .and_then(|t| t.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
-                            let input = call.get("input").cloned().unwrap_or(serde_json::Value::Null);
-                            let tool_input = serde_json::to_string(&input).ok().filter(|s| s != "null");
+                            let state = p.get("state").unwrap_or(&serde_json::Value::Null);
+                            let input = state.get("input").cloned().unwrap_or(serde_json::Value::Null);
+                            let tool_input = serde_json::to_string(&input)
+                                .ok()
+                                .filter(|s| s != "null" && s != "{}");
+                            // Prefer `output`; fall back to `error` (failed tool calls).
+                            let output = state
+                                .get("output")
+                                .and_then(|o| o.as_str())
+                                .or_else(|| state.get("error").and_then(|e| e.as_str()))
+                                .unwrap_or("")
+                                .to_string();
 
                             if let Some(fp) = extract_file_path(&input) {
                                 file_touches.push(FileTouch {
@@ -414,10 +360,6 @@ impl AgentAdapter for ZCodeAdapter {
                                     operation: file_operation_for(&tool_name),
                                     sequence: seq,
                                 });
-                            }
-
-                            if title.is_empty() {
-                                title = format!("[Tool: {}]", tool_name);
                             }
 
                             messages.push(Message {
@@ -429,97 +371,33 @@ impl AgentAdapter for ZCodeAdapter {
                                 sequence: seq,
                                 tool_name: Some(tool_name),
                                 tool_input,
-                                tool_output: None,
+                                tool_output: if output.is_empty() { None } else { Some(output) },
                             });
                             seq += 1;
                         }
                     }
                 }
-                "tool" => {
-                    // Tool result: scalar string content linked back via toolCallId.
-                    let output = msg
-                        .get("content")
-                        .and_then(|c| c.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let tool_name = msg
-                        .get("toolName")
-                        .and_then(|n| n.as_str())
-                        .map(ToString::to_string);
-                    messages.push(Message {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        session_id: session_id.clone(),
-                        role: MessageRole::Tool,
-                        content: String::new(),
-                        timestamp: None,
-                        sequence: seq,
-                        tool_name,
-                        tool_input: None,
-                        tool_output: Some(output),
-                    });
-                    seq += 1;
-                }
-                _ => {}
+                _ => {} // system + any unknown role skipped
             }
         }
-
-        // The freshest line's `response` is the model's answer for the final turn — it isn't
-        // part of `.request.messages` yet (it becomes the next turn's input), so capture it as
-        // a trailing assistant message when it's a real text reply (not a tool-call-only turn,
-        // whose calls were already replayed from the assistant message in the merged map).
-        if let Some(source) = last_line {
-            let final_text = source
-                .get("response")
-                .and_then(|r| r.get("text"))
-                .and_then(|t| t.as_str())
-                .unwrap_or("");
-            let final_has_tool_calls = source
-                .get("response")
-                .and_then(|r| r.get("toolCalls"))
-                .and_then(|t| t.as_array())
-                .map_or(false, |a| !a.is_empty());
-            if !final_text.trim().is_empty() && !final_has_tool_calls {
-                messages.push(Message {
-                    id: uuid::Uuid::new_v4().to_string(),
-                    session_id: session_id.clone(),
-                    role: MessageRole::Assistant,
-                    content: final_text.to_string(),
-                    timestamp: None,
-                    sequence: seq,
-                    tool_name: None,
-                    tool_input: None,
-                    tool_output: None,
-                });
-            }
-        }
-
-        if title.is_empty() {
-            title = format!(
-                "Session {}",
-                session_id.chars().take(8).collect::<String>()
-            );
-        }
-
-        let system_refs: Vec<&str> = system_texts.iter().map(|s| s.as_str()).collect();
-        let project_path = extract_project_path(&system_refs);
 
         let session = Session {
             id: session_id,
-            parent_session_id: None,
+            parent_session_id,
             agent: AgentType::Zcode,
             title,
             project_path,
-            created_at,
-            updated_at,
+            created_at: ms_to_datetime(time_created),
+            updated_at: ms_to_datetime(time_updated),
             file_path: path.to_string_lossy().to_string(),
             is_active: false,
             message_count: messages.len() as u32,
             model,
-            git_branch: None,
+            git_branch,
             input_tokens,
             output_tokens,
             cached_tokens,
-            reasoning_tokens: 0,
+            reasoning_tokens,
             file_count: 0,
         };
 
@@ -531,7 +409,6 @@ impl AgentAdapter for ZCodeAdapter {
         })
     }
 
-
     fn supports_resume(&self) -> bool {
         false
     }
@@ -542,8 +419,9 @@ impl AgentAdapter for ZCodeAdapter {
     }
 
     async fn is_active(&self, _session_path: &Path) -> bool {
-        // File stem is `model-io-sess_<uuid>`; the DB id is `sess_<uuid>`. They don't match,
-        // so active-session reconciliation via file_stem can't work here — opt out (like codex).
+        // Synthetic `zcode://session/<id>` paths have no mtime/lockfile to inspect. A
+        // recency heuristic over `session.time_updated` could power this later; for now,
+        // opt out.
         false
     }
 }
@@ -552,237 +430,296 @@ impl AgentAdapter for ZCodeAdapter {
 mod tests {
     use super::*;
     use crate::adapters::AgentAdapter;
+    use rusqlite::Connection;
+
+    /// Build a temp ZCode DB with the subset of the schema the adapter queries, then reopen
+    /// it read-only via the adapter by pointing `ZCODE_STORAGE_DIR` at the temp root.
+    struct TempDb {
+        root: PathBuf,
+        _tmp: tempfile::TempDir,
+    }
+
+    impl TempDb {
+        fn new() -> Self {
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path().to_path_buf();
+            std::fs::create_dir_all(root.join("cli").join("db")).unwrap();
+            Self { root, _tmp: tmp }
+        }
+
+        fn db_path(&self) -> PathBuf {
+            self.root.join("cli").join("db").join("db.sqlite")
+        }
+
+        fn seed(&self) {
+            let conn = Connection::open(self.db_path()).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE session (
+                    id text primary key, project_id text not null default '', workspace_id text,
+                    parent_id text, slug text not null default '', directory text not null default '',
+                    path text, title text not null default '', version text not null default '',
+                    time_created integer not null default 0, time_updated integer not null default 0,
+                    task_type text not null default 'interactive'
+                );
+                CREATE TABLE message (
+                    id text primary key, session_id text not null,
+                    time_created integer not null default 0, time_updated integer not null default 0,
+                    data text not null
+                );
+                CREATE TABLE part (
+                    id text primary key, message_id text not null, session_id text not null,
+                    time_created integer not null default 0, time_updated integer not null default 0,
+                    data text not null
+                );",
+            )
+            .unwrap();
+        }
+
+        fn insert_session(
+            &self,
+            id: &str,
+            title: &str,
+            directory: &str,
+            parent_id: Option<&str>,
+            task_type: &str,
+            time_created: i64,
+            time_updated: i64,
+        ) {
+            let conn = Connection::open(self.db_path()).unwrap();
+            conn.execute(
+                "INSERT INTO session (id, title, directory, parent_id, task_type, time_created, time_updated) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                rusqlite::params![id, title, directory, parent_id, task_type, time_created, time_updated],
+            )
+            .unwrap();
+        }
+
+        fn insert_message(&self, id: &str, session_id: &str, time_created: i64, data: serde_json::Value) {
+            let conn = Connection::open(self.db_path()).unwrap();
+            conn.execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?3, ?4)",
+                rusqlite::params![id, session_id, time_created, data.to_string()],
+            )
+            .unwrap();
+        }
+
+        fn insert_part(&self, id: &str, message_id: &str, session_id: &str, time_created: i64, data: serde_json::Value) {
+            let conn = Connection::open(self.db_path()).unwrap();
+            conn.execute(
+                "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) \
+                 VALUES (?1, ?2, ?3, ?4, ?4, ?5)",
+                rusqlite::params![id, message_id, session_id, time_created, data.to_string()],
+            )
+            .unwrap();
+        }
+    }
+
+    fn with_env_storage_root(root: &Path) {
+        std::env::set_var("ZCODE_STORAGE_DIR", root);
+    }
+
+    fn clear_env_storage_root() {
+        std::env::remove_var("ZCODE_STORAGE_DIR");
+    }
 
     #[test]
-    fn data_dir_path_from_home_uses_dot_zcode_rollout_on_unix() {
+    fn db_path_from_home_uses_dot_zcode_on_unix() {
         let home = std::path::Path::new("/home/orbit-user");
-
         if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
             assert_eq!(
-                ZCodeAdapter::data_dir_path_from_home(home),
-                Some(home.join(".zcode").join("cli").join("rollout"))
+                ZCodeAdapter::db_path_from_home(home),
+                Some(home.join(".zcode").join("cli").join("db").join("db.sqlite"))
             );
         } else {
-            assert!(ZCodeAdapter::data_dir_path_from_home(home).is_none());
+            assert!(ZCodeAdapter::db_path_from_home(home).is_none());
         }
     }
 
     #[test]
     fn resume_command_uses_zcode_resume_flag() {
-        let adapter = ZCodeAdapter::new();
-
         assert_eq!(
-            adapter.resume_command("sess_abc-123", ""),
+            ZCodeAdapter::new().resume_command("sess_abc-123", ""),
             "zcode --resume 'sess_abc-123'"
         );
     }
 
     #[test]
     fn does_not_support_resume() {
-        let adapter = ZCodeAdapter::new();
-        assert!(!adapter.supports_resume());
+        assert!(!ZCodeAdapter::new().supports_resume());
     }
 
     #[tokio::test]
-    async fn parses_zcode_rollout_with_title_call_and_main_turn() {
-        let temp = tempfile::tempdir().unwrap();
+    async fn scan_returns_interactive_sessions_only_as_synthetic_paths() {
+        let db = TempDb::new();
+        db.seed();
+        db.insert_session("sess_interactive_1", "First", "/p/a", None, "interactive", 1000, 5000);
+        db.insert_session("sess_interactive_2", "Second", "/p/b", None, "interactive", 1000, 6000);
+        db.insert_session("sess_subagent_1", "Child", "/p/a", Some("sess_interactive_1"), "subagent_child", 1000, 5500);
+
+        with_env_storage_root(&db.root);
+        let locations = ZCodeAdapter::new().scan().await;
+        clear_env_storage_root();
+
+        // Subagent excluded; ordered by time_updated DESC → newest first.
+        let ids: Vec<String> = locations
+            .iter()
+            .map(|l| l.path.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            ids,
+            vec![
+                "zcode://session/sess_interactive_2".to_string(),
+                "zcode://session/sess_interactive_1".to_string(),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn parse_session_extracts_title_cwd_branch_tokens_and_messages() {
+        let db = TempDb::new();
+        db.seed();
         let session_id = "sess_b7b1b5dd-45a7-4165-8b1a-3d507abbe295";
-        let path = temp.path().join(format!("model-io-{}.jsonl", session_id));
+        db.insert_session(
+            session_id,
+            "Add ZCode adapter support",
+            "/Users/maf/orbit",
+            None,
+            "interactive",
+            1_782_322_453_561,
+            1_784_651_441_848,
+        );
 
-        // session_title line — its response.text carries the generated title.
-        let title_line = serde_json::json!({
-            "type": "model_io",
-            "querySource": "session_title",
-            "model": {"modelId": "GLM-5.2", "role": "lite"},
-            "sessionId": session_id,
-            "startedAt": "2026-06-24T17:34:13.564Z",
-            "completedAt": "2026-06-24T17:34:21.517Z",
-            "response": {"text": "{\"title\":\"Add ZCode adapter support\"}", "toolCalls": []}
-        });
+        // User message carrying contextSnapshot.envInfo.gitBranch.
+        db.insert_message(
+            "msg_u1",
+            session_id,
+            1_782_322_453_562,
+            serde_json::json!({
+                "role": "user",
+                "contextSnapshot": {"envInfo": {"cwd": "/Users/maf/orbit", "gitBranch": "main"}}
+            }),
+        );
+        db.insert_part("p_u1", "msg_u1", session_id, 1_782_322_453_562, serde_json::json!({
+            "type": "text", "text": "Add ZCode adapter support"
+        }));
 
-        // main_turn line: system reminder skipped, real user prompt, assistant tool call,
-        // its tool result, and a final text reply in response.text. System prompt embeds cwd.
-        let main_line = serde_json::json!({
-            "type": "model_io",
-            "querySource": "main_turn",
-            "model": {"modelId": "GLM-5.2", "role": "main"},
-            "sessionId": session_id,
-            "startedAt": "2026-06-24T17:34:13.566Z",
-            "completedAt": "2026-06-24T17:38:28.620Z",
-            "request": {
-                "messagesKind": "full",
-                "messages": [
-                    {"role": "system", "content": "Primary working directory: /Users/maf/orbit"},
-                    {"role": "user", "content": "<system-reminder>skills list</system-reminder>"},
-                    {"role": "user", "content": "Add ZCode adapter support"},
-                    {"role": "assistant", "content": [{"type": "text", "text": "Let me look."}], "toolCalls": [{"id": "call_1", "name": "Read", "input": {"file_path": "/src/main.rs"}}]},
-                    {"role": "tool", "content": "file contents", "toolCallId": "call_1", "toolName": "Read"}
-                ]
-            },
-            "response": {
-                "text": "Done.",
-                "toolCalls": [],
-                "usage": {"inputTokens": 100, "outputTokens": 50, "cacheReadTokens": 80}
+        // Assistant message: text + a tool call, with tokens + modelID.
+        db.insert_message(
+            "msg_a1",
+            session_id,
+            1_782_322_453_563,
+            serde_json::json!({
+                "role": "assistant",
+                "modelID": "GLM-5.2",
+                "tokens": {"input": 10916, "output": 270, "reasoning": 0, "cache": {"read": 8064}}
+            }),
+        );
+        db.insert_part("p_a1_text", "msg_a1", session_id, 1_782_322_453_563, serde_json::json!({
+            "type": "text", "text": "Let me look."
+        }));
+        db.insert_part("p_a1_tool", "msg_a1", session_id, 1_782_322_453_564, serde_json::json!({
+            "type": "tool",
+            "tool": "Read",
+            "state": {
+                "status": "completed",
+                "input": {"file_path": "/src/main.rs"},
+                "output": "file contents"
             }
-        });
+        }));
 
-        std::fs::write(&path, format!("{}\n{}\n", title_line, main_line)).unwrap();
-
-        let adapter = ZCodeAdapter::new();
-        let parsed = adapter.parse_session(&path).await.unwrap();
+        with_env_storage_root(&db.root);
+        let parsed = ZCodeAdapter::new()
+            .parse_session(Path::new(&format!("zcode://session/{}", session_id)))
+            .await
+            .unwrap();
+        clear_env_storage_root();
 
         assert_eq!(parsed.session.id, session_id);
         assert_eq!(parsed.session.agent, AgentType::Zcode);
         assert_eq!(parsed.session.title, "Add ZCode adapter support");
         assert_eq!(parsed.session.project_path, "/Users/maf/orbit");
         assert_eq!(parsed.session.model.as_deref(), Some("GLM-5.2"));
-        assert_eq!(parsed.session.git_branch, None);
+        assert_eq!(parsed.session.git_branch.as_deref(), Some("main"));
         assert_eq!(parsed.session.parent_session_id, None);
-        assert!(!adapter.supports_resume());
-        assert_eq!(parsed.session.input_tokens, 100);
-        assert_eq!(parsed.session.output_tokens, 50);
-        assert_eq!(parsed.session.cached_tokens, 80);
+        assert_eq!(parsed.session.input_tokens, 10916);
+        assert_eq!(parsed.session.output_tokens, 270);
+        assert_eq!(parsed.session.cached_tokens, 8064);
         assert_eq!(parsed.session.reasoning_tokens, 0);
         assert_eq!(
             parsed.session.created_at.to_rfc3339(),
-            DateTime::parse_from_rfc3339("2026-06-24T17:34:13.566Z")
-                .unwrap()
-                .with_timezone(&Utc)
-                .to_rfc3339()
+            ms_to_datetime(1_782_322_453_561).to_rfc3339()
         );
 
-        // system skipped, first user (reminder) skipped, real user, assistant text, tool call,
-        // tool result, final assistant reply.
-        assert_eq!(parsed.messages.len(), 5);
-        let roles: Vec<&MessageRole> = parsed.messages.iter().map(|m| &m.role).collect();
-        assert_eq!(
-            roles,
-            [
-                &MessageRole::User,
-                &MessageRole::Assistant,
-                &MessageRole::Tool,
-                &MessageRole::Tool,
-                &MessageRole::Assistant
-            ]
-        );
+        // user text, assistant text, assistant tool call.
+        assert_eq!(parsed.messages.len(), 3);
+        assert_eq!(parsed.messages[0].role, MessageRole::User);
         assert_eq!(parsed.messages[0].content, "Add ZCode adapter support");
+        assert_eq!(parsed.messages[1].role, MessageRole::Assistant);
         assert_eq!(parsed.messages[1].content, "Let me look.");
+        assert_eq!(parsed.messages[2].role, MessageRole::Tool);
         assert_eq!(parsed.messages[2].tool_name.as_deref(), Some("Read"));
         assert!(parsed.messages[2].tool_input.as_deref().unwrap().contains("/src/main.rs"));
-        assert_eq!(parsed.messages[3].tool_output.as_deref(), Some("file contents"));
-        assert_eq!(parsed.messages[4].content, "Done.");
+        assert_eq!(parsed.messages[2].tool_output.as_deref(), Some("file contents"));
 
         let touches: Vec<&str> = parsed.file_touches.iter().map(|t| t.path.as_str()).collect();
         assert!(touches.contains(&"/src/main.rs"));
-        let ops: std::collections::HashSet<&str> =
-            parsed.file_touches.iter().map(|t| t.operation.as_str()).collect();
-        assert!(ops.contains("read"));
+        assert_eq!(parsed.file_touches[0].operation, "read");
     }
 
     #[tokio::test]
-    async fn falls_back_to_first_user_message_when_no_title_call() {
-        let temp = tempfile::tempdir().unwrap();
-        let session_id = "sess_no-title";
-        let path = temp.path().join(format!("model-io-{}.jsonl", session_id));
-
-        let main_line = serde_json::json!({
-            "type": "model_io",
-            "querySource": "main_turn",
-            "model": {"modelId": "GLM-5.2", "role": "main"},
-            "sessionId": session_id,
-            "startedAt": "2026-06-24T17:34:13.566Z",
-            "completedAt": "2026-06-24T17:38:28.620Z",
-            "request": {
-                "messages": [
-                    {"role": "user", "content": "Fix the bug in auth"}
-                ]
-            },
-            "response": {"text": "", "toolCalls": []}
-        });
-
-        std::fs::write(&path, format!("{}\n", main_line)).unwrap();
-
-        let adapter = ZCodeAdapter::new();
-        let parsed = adapter.parse_session(&path).await.unwrap();
-
-        assert_eq!(parsed.session.title, "Fix the bug in auth");
-    }
-
-    #[tokio::test]
-    async fn merges_tail_windows_so_first_user_message_is_not_lost() {
-        // Regression: once a session exceeds 64 messages ZCode switches from `full` to `tail`
-        // snapshots and drops the head of the conversation (including the first user message).
-        // A "take the last line" parser would lose the first user message. We must merge all
-        // windows by global index.
-        let temp = tempfile::tempdir().unwrap();
-        let session_id = "sess_long";
-        let path = temp.path().join(format!("model-io-{}.jsonl", session_id));
-
-        // Line 1: full snapshot covering [0, 4) — contains the original first user message.
-        let line1 = serde_json::json!({
-            "type": "model_io",
-            "querySource": "main_turn",
-            "model": {"modelId": "GLM-5.2", "role": "main"},
-            "sessionId": session_id,
-            "startedAt": "2026-06-24T17:34:13.566Z",
-            "completedAt": "2026-06-24T17:35:00.000Z",
-            "request": {
-                "messagesKind": "full",
-                "messageOffset": 0,
-                "messageCount": 4,
-                "messages": [
-                    {"role": "user", "content": "Add ZCode adapter support"},
-                    {"role": "assistant", "content": [{"type": "text", "text": "On it."}]},
-                    {"role": "assistant", "content": [{"type": "text", "text": ""}], "toolCalls": [{"id": "call_1", "name": "Read", "input": {"file_path": "/a.rs"}}]},
-                    {"role": "tool", "content": "contents", "toolCallId": "call_1", "toolName": "Read"}
-                ]
-            },
-            "response": {"text": "", "toolCalls": []}
-        });
-
-        // Line 2: tail snapshot covering [1, 4) — messageOffset=1, drops index 0 (the first
-        // user message). The response holds the freshest turn's text answer.
-        let line2 = serde_json::json!({
-            "type": "model_io",
-            "querySource": "main_turn",
-            "model": {"modelId": "GLM-5.2", "role": "main"},
-            "sessionId": session_id,
-            "startedAt": "2026-06-24T17:36:00.000Z",
-            "completedAt": "2026-06-24T17:38:28.620Z",
-            "request": {
-                "messagesKind": "tail",
-                "messageOffset": 1,
-                "messageCount": 4,
-                "messages": [
-                    {"role": "assistant", "content": [{"type": "text", "text": "On it."}]},
-                    {"role": "assistant", "content": [{"type": "text", "text": ""}], "toolCalls": [{"id": "call_1", "name": "Read", "input": {"file_path": "/a.rs"}}]},
-                    {"role": "tool", "content": "contents", "toolCallId": "call_1", "toolName": "Read"}
-                ]
-            },
-            "response": {"text": "Done.", "toolCalls": []}
-        });
-
-        std::fs::write(&path, format!("{}\n{}\n", line1, line2)).unwrap();
-
-        let adapter = ZCodeAdapter::new();
-        let parsed = adapter.parse_session(&path).await.unwrap();
-
-        // The first user message MUST survive the merge.
-        assert_eq!(parsed.messages.first().map(|m| m.content.as_str()), Some("Add ZCode adapter support"));
-        assert_eq!(parsed.messages[0].role, MessageRole::User);
-
-        // user, assistant text, tool call, tool result, final assistant reply.
-        assert_eq!(parsed.messages.len(), 5);
-        assert_eq!(parsed.messages[4].content, "Done.");
-
-        // updated_at tracks the last line's completion; created_at tracks the first line's start.
-        assert_eq!(
-            parsed.session.updated_at.to_rfc3339(),
-            DateTime::parse_from_rfc3339("2026-06-24T17:38:28.620Z")
-                .unwrap()
-                .with_timezone(&Utc)
-                .to_rfc3339()
+    async fn parse_session_resolves_subagent_parent() {
+        let db = TempDb::new();
+        db.seed();
+        db.insert_session("sess_parent", "Parent", "/p", None, "interactive", 1000, 2000);
+        db.insert_session(
+            "sess_subagent_child",
+            "Child",
+            "/p",
+            Some("sess_parent"),
+            "subagent_child",
+            1100,
+            1900,
         );
+
+        with_env_storage_root(&db.root);
+        // parse_session works regardless of task_type — scan() is what filters, but a direct
+        // parse of a subagent path should still resolve its parent_id.
+        let parsed = ZCodeAdapter::new()
+            .parse_session(Path::new("zcode://session/sess_subagent_child"))
+            .await;
+        clear_env_storage_root();
+
+        let parsed = parsed.unwrap();
+        assert_eq!(parsed.session.parent_session_id.as_deref(), Some("sess_parent"));
+    }
+
+    #[tokio::test]
+    async fn parse_session_uses_error_as_output_when_no_output() {
+        let db = TempDb::new();
+        db.seed();
+        let session_id = "sess_err";
+        db.insert_session(session_id, "Err", "/p", None, "interactive", 1000, 2000);
+        db.insert_message("msg_a1", session_id, 1100, serde_json::json!({"role": "assistant", "modelID": "GLM-5.2"}));
+        db.insert_part("p_tool", "msg_a1", session_id, 1100, serde_json::json!({
+            "type": "tool",
+            "tool": "Read",
+            "state": {
+                "status": "error",
+                "input": {"file_path": "/missing"},
+                "error": "File not found"
+            }
+        }));
+
+        with_env_storage_root(&db.root);
+        let parsed = ZCodeAdapter::new()
+            .parse_session(Path::new(&format!("zcode://session/{}", session_id)))
+            .await
+            .unwrap();
+        clear_env_storage_root();
+
+        let tool_msg = parsed.messages.iter().find(|m| m.role == MessageRole::Tool).unwrap();
+        assert_eq!(tool_msg.tool_output.as_deref(), Some("File not found"));
     }
 }
 
